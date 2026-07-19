@@ -327,11 +327,7 @@ function renderTree() {
   let h = '';
   h += tRow('dashboard',null,'🏠','ダッシュボード',false,false,'','','');
 
-  const phO = treeOpen.philosophy;
-  h += `<div>`;
-  h += tRow('philosophy',null,'📋','理念',true,phO,`tog('philosophy',event)`,'',`<button onclick="event.stopPropagation();go('philosophy')" class="t-add" title="編集">✎</button>`);
-  if(phO){h+=`<div class="t-children">`;for(const[sub,lbl]of[['mission','ミッション'],['vision','ビジョン'],['values','バリュー'],['story','創業の想い']]){h+=tRow('philosophy-sub',sub,'📌',lbl,false,false,'');}h+=`</div>`;}
-  h += `</div>`;
+  h += tRow('philosophy',null,'📋','理念',false,false,'');
 
   const bizO = treeOpen.businesses;
   h += `<div>`;
@@ -439,16 +435,12 @@ function renderPanel() {
 // ── Dashboard ─────────────────────────────────────────────
 function pDashboard() {
   const p=data.philosophy;
-  const ph=[];
-  if(p.mission) ph.push(`<div class="hl">MISSION</div><div class="ht">${esc(p.mission)}</div>`);
-  if(p.vision)  ph.push(`<div class="hl" style="margin-top:10px">VISION</div><div class="ht">${esc(p.vision)}</div>`);
-  if(p.values?.length) ph.push(`<div class="hl" style="margin-top:10px">VALUES</div><ul style="margin:4px 0 0 1.3em">${p.values.map(v=>`<li style="font-size:.9rem">${esc(v)}</li>`).join('')}</ul>`);
   const avg=data.strategies.length?Math.round(data.strategies.reduce((a,s)=>a+(s.progress||0),0)/data.strategies.length):0;
   const upcoming=data.strategies.filter(s=>s.due&&s.progress<100).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,6);
   const td=today();
   return `
   <div class="p-head"><span class="p-icon">🏠</span><div><div class="p-title">ダッシュボード</div></div></div>
-  <div class="hero">${ph.length?ph.join(''):'<div style="opacity:.75">理念タブからミッション・ビジョンを登録しましょう。</div>'}</div>
+  <div class="hero">${p.mission?`<div class="hl">MISSION</div><div class="ht">${esc(p.mission)}</div>`:'<div style="opacity:.75">理念タブからミッションを登録しましょう。</div>'}</div>
   <div class="grid2">
     <div class="card stat"><div class="num">${data.businesses.length}</div><div class="lbl">事業数</div></div>
     <div class="card stat"><div class="num">${data.businesses.filter(b=>b.status==='運営中').length}</div><div class="lbl">運営中</div></div>
@@ -486,36 +478,16 @@ function pDashboard() {
 
 // ── Philosophy ────────────────────────────────────────────
 function pPhilosophy() {
-  const p=data.philosophy, fs=sel.type==='philosophy-sub'?sel.id:null;
-  const vals=(p.values?.length)?p.values:[''];
-  const valHtml=vals.map(v=>`<div class="val-row"><input type="text" value="${esc(v)}" placeholder="例: 誠実であること"><button class="btn del sm" onclick="this.parentElement.remove()">削除</button></div>`).join('');
+  const p=data.philosophy;
   return `
-  <div class="p-head"><span class="p-icon">📋</span><div><div class="p-title">理念</div><div class="p-sub">ミッション・ビジョン・バリューの管理</div></div></div>
+  <div class="p-head"><span class="p-icon">📋</span><div><div class="p-title">理念</div><div class="p-sub">ミッション(使命) — なぜ存在するのか</div></div></div>
   <div class="card">
-    <label>ミッション(使命) — なぜ存在するのか</label>
-    <textarea id="phMission" ${fs==='mission'?'autofocus':''}>${esc(p.mission||'')}</textarea>
-    <label>ビジョン(将来像) — どこを目指すのか</label>
-    <textarea id="phVision" ${fs==='vision'?'autofocus':''}>${esc(p.vision||'')}</textarea>
-    <label>バリュー(価値観・行動指針)</label>
-    <div id="valsList">${valHtml}</div>
-    <button class="btn sec sm" onclick="addVal()" style="margin-top:4px">+ バリューを追加</button>
-    <label>創業の想い・背景(任意)</label>
-    <textarea id="phStory" ${fs==='story'?'autofocus':''}>${esc(p.story||'')}</textarea>
-    <div class="btn-row"><button class="btn" onclick="savePhil()">理念を保存</button></div>
+    <textarea id="phMission" rows="6" placeholder="例: 一人ひとりが自分らしい生き方と働き方を実現できる社会をつくる">${esc(p.mission||'')}</textarea>
+    <div class="btn-row"><button class="btn" onclick="savePhil()">保存</button></div>
   </div>`;
 }
-function addVal() {
-  const d=document.createElement('div');d.className='val-row';
-  d.innerHTML=`<input type="text" placeholder="例: 誠実であること"><button class="btn del sm" onclick="this.parentElement.remove()">削除</button>`;
-  document.getElementById('valsList').appendChild(d);
-}
 function savePhil() {
-  data.philosophy={
-    mission:document.getElementById('phMission').value.trim(),
-    vision: document.getElementById('phVision').value.trim(),
-    values: [...document.querySelectorAll('#valsList input')].map(i=>i.value.trim()).filter(Boolean),
-    story:  document.getElementById('phStory').value.trim()
-  };
+  data.philosophy.mission = document.getElementById('phMission').value.trim();
   persist('理念を保存しました');
 }
 
