@@ -181,25 +181,6 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-ligh
 .dash-row:hover { color: var(--accent); }
 
 /* Relation map */
-.map-node {
-  position: absolute; width: 130px; height: 46px;
-  background: #fff; border: 2px solid var(--accent); border-radius: 8px;
-  display: flex; align-items: center; gap: 7px; padding: 0 10px;
-  cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,.1);
-  font-size: 11px; font-weight: 600;
-}
-.map-node:hover { border-color: var(--accent-dark); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
-.map-node.dragging { cursor: grabbing; opacity: .85; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
-
-.rel-badge {
-  font-size: .65rem; padding: 2px 7px; border-radius: 999px;
-  font-weight: 700; white-space: nowrap; flex-shrink: 0;
-}
-.rel-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 0; border-bottom: 1px solid var(--border);
-}
-.rel-row:last-child { border-bottom: none; }
 
 .saved-toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -310,14 +291,6 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-ligh
 
 <script>
 // ── Constants ─────────────────────────────────────────────
-const REL_TYPES = [
-  { key:'synergy',  label:'シナジー',     color:'#1e5f8a', bg:'#e8f1f7' },
-  { key:'customer', label:'顧客紹介',     color:'#15803d', bg:'#dcfce7' },
-  { key:'resource', label:'リソース共有', color:'#b45309', bg:'#fef3c7' },
-  { key:'depend',   label:'依存関係',     color:'#7c3aed', bg:'#ede9fe' },
-  { key:'other',    label:'その他',       color:'#6b7280', bg:'#f3f4f6' },
-];
-const relTypeInfo = k => REL_TYPES.find(t=>t.key===k) || REL_TYPES[4];
 const dotColor = { '構想中':'#9ca3af','準備中':'#b45309','運営中':'#15803d','休止中':'#b91c1c' };
 const bBadge = s => ({構想中:'b-plan',準備中:'b-prep',運営中:'b-run',休止中:'b-stop'}[s]||'b-plan');
 
@@ -326,8 +299,7 @@ const STORE_KEY = 'lims-data-v1';
 let data = {
   philosophy: { mission:'', vision:'', values:[], story:'' },
   businesses: [], strategies: [], notes: [],
-  relations: [], customers: [],
-  bizPositions: {},
+  customers: [],
   flowNodes: [], flowEdges: []
 };
 let sel = { type:'dashboard', id:null };
@@ -339,8 +311,6 @@ function load() {
     if (r) {
       const parsed = JSON.parse(r);
       data = Object.assign(data, parsed);
-      if (!data.relations)    data.relations = [];
-      if (!data.bizPositions) data.bizPositions = {};
       if (!data.customers)    data.customers = [];
       if (!data.flowNodes)    data.flowNodes = [];
       if (!data.flowEdges)    data.flowEdges = [];
@@ -373,8 +343,7 @@ function isSel(type, id=null) {
   if (type==='notes'           && sel.type==='new-note') return true;
   if (type==='note'            && sel.type==='edit-note' && sel.id===id) return true;
   if (type==='strategy'        && sel.type==='edit-strategy' && sel.id===id) return true;
-  if (type==='relation-map'    && (sel.type==='new-relation'||sel.type==='edit-relation')) return true;
-  if (type==='customers'       && sel.type==='new-customer') return true;
+if (type==='customers'       && sel.type==='new-customer') return true;
   if (type==='customer'        && sel.type==='edit-customer' && sel.id===id) return true;
   return false;
 }
@@ -421,17 +390,6 @@ function renderTree() {
   h+=tRow('common-strategies',null,'🎯','共通・全体戦略',cStr.length>0,cO,`tog('common',event)`,cStr.length||'',`<button onclick="event.stopPropagation();newStrategy('')" class="t-add" title="追加">＋</button>`);
   if(cO&&cStr.length){h+=`<div class="t-children">`;for(const s of cStr){h+=tRowStrat(s);}h+=`</div>`;}
   h+=`</div>`;
-
-  const relSel=isSel('relation-map')?' sel':'';
-  h+=`<div class="t-row${relSel}" onclick="go('relation-map')">
-    <span class="t-tog leaf">▶</span>
-    <span class="t-icon">🔗</span>
-    <span class="t-label">関係マップ</span>
-    ${data.relations.length?`<span class="t-count">${data.relations.length}</span>`:''}
-    <div class="t-acts">
-      <button onclick="event.stopPropagation();newRelation()" class="t-add" title="関係を追加">＋</button>
-    </div>
-  </div>`;
 
   const flowSel=isSel('flow-map')?' sel':'';
   h+=`<div class="t-row${flowSel}" onclick="go('flow-map')">
@@ -494,10 +452,7 @@ function renderPanel() {
     case 'strategy':          el.innerHTML = pStrat(sel.id); break;
     case 'new-strategy':      el.innerHTML = pEditStrat(null, sel.id); break;
     case 'edit-strategy':     el.innerHTML = pEditStrat(sel.id); break;
-    case 'relation-map':      el.innerHTML = pRelationMap(); if(data.businesses.length>=1) setTimeout(initMap,0); break;
-    case 'new-relation':      el.innerHTML = pEditRelation(null, sel.id); break;
-    case 'edit-relation':     el.innerHTML = pEditRelation(sel.id); break;
-    case 'notes':             el.innerHTML = pNoteList(); break;
+case 'notes':             el.innerHTML = pNoteList(); break;
     case 'note':              el.innerHTML = pNote(sel.id); break;
     case 'new-note':          el.innerHTML = pEditNote(null); break;
     case 'edit-note':         el.innerHTML = pEditNote(sel.id); break;
@@ -520,7 +475,6 @@ function pDashboard() {
     <div class="card stat"><div class="num">${data.businesses.length}</div><div class="lbl">事業数</div></div>
     <div class="card stat"><div class="num">${data.businesses.filter(b=>b.status==='運営中').length}</div><div class="lbl">運営中</div></div>
     <div class="card stat"><div class="num">${data.strategies.length}</div><div class="lbl">戦略・目標</div></div>
-    <div class="card stat"><div class="num">${data.relations.length}</div><div class="lbl">事業関係</div></div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -576,7 +530,6 @@ function pBiz(id) {
   const b=data.businesses.find(x=>x.id===id);
   if(!b) return '<div class="empty">事業が見つかりません</div>';
   const bs=data.strategies.filter(s=>s.bizId===id);
-  const rels=data.relations.filter(r=>r.fromId===id||r.toId===id);
   return `
   <div class="p-head">
     <span class="p-icon">🏢</span>
@@ -599,24 +552,7 @@ function pBiz(id) {
       </div>`).join('')}</div>`:
     '<div class="meta">まだ戦略が登録されていません。</div>'}
   </div>
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="font-weight:700">関連する事業 (${rels.length}件)</div>
-      <button class="btn sm" onclick="newRelation('${id}')">+ 関係を追加</button>
-    </div>
-    ${rels.length?rels.map(rel=>{
-      const isSrc=rel.fromId===id;
-      const other=data.businesses.find(b=>b.id===(isSrc?rel.toId:rel.fromId));
-      const ti=relTypeInfo(rel.type);
-      const dir=rel.direction==='both'?'↔':(isSrc?'→':'←');
-      return `<div class="rel-row" style="cursor:pointer" onclick="go('business','${other?other.id:''}')">
-        <span class="rel-badge" style="background:${ti.bg};color:${ti.color}">${ti.label}</span>
-        <span style="color:${ti.color};font-weight:700;font-size:1rem">${dir}</span>
-        <span style="font-size:.88rem;flex:1"><strong>${esc(other?other.name:'不明')}</strong>${rel.label?` <span class="meta">— ${esc(rel.label)}</span>`:''}</span>
-        <button class="btn sec sm" onclick="event.stopPropagation();editRelation('${rel.id}')">編集</button>
-      </div>`;
-    }).join(''):`<div class="meta">まだ関係が登録されていません。<br><a href="javascript:void(0)" onclick="go('relation-map')" style="color:var(--accent)">関係マップ</a>から追加できます。</div>`}
-  </div>`;
+  `;
 }
 
 function pEditBiz(id) {
@@ -651,8 +587,6 @@ function delBiz(id) {
   if(!confirm('この事業を削除しますか?'))return;
   data.businesses=data.businesses.filter(x=>x.id!==id);
   data.strategies.forEach(s=>{if(s.bizId===id)s.bizId='';});
-  data.relations=data.relations.filter(r=>r.fromId!==id&&r.toId!==id);
-  delete data.bizPositions[id];
   sel={type:'businesses',id:null}; persist('削除しました');
 }
 
@@ -737,260 +671,6 @@ function delStrat(id) {
   sel=bz?{type:'business',id:bz}:{type:'common-strategies',id:null};
   persist('削除しました');
 }
-
-// ── Relation Map ──────────────────────────────────────────
-const MAP_W=700, MAP_H=420, NW=65, NH=23;
-
-function pRelationMap() {
-  const hasBiz=data.businesses.length>=1;
-  return `
-  <div class="p-head">
-    <span class="p-icon">🔗</span>
-    <div><div class="p-title">事業関係マップ</div><div class="p-sub">事業間のつながりを視覚化・整理</div></div>
-    <div class="p-head-right">
-      ${hasBiz?`<button class="btn sec sm" onclick="resetMapPos()" title="ノードを再配置">⟲ 再配置</button>`:''}
-      <button class="btn sm" onclick="newRelation()">+ 関係を追加</button>
-    </div>
-  </div>
-  ${!hasBiz?'<div class="card empty">事業を追加してから関係を設定できます。</div>':`
-  <div class="card" style="padding:10px;overflow:auto">
-    <div id="mapContainer" style="position:relative;width:${MAP_W}px;height:${MAP_H}px;background:#fafbfc;border-radius:6px;border:1px solid var(--border);user-select:none">
-      <svg id="mapSVG" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;width:${MAP_W}px;height:${MAP_H}px;pointer-events:none;overflow:visible"></svg>
-      <div id="mapNodes" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>
-    </div>
-    <div class="meta" style="margin-top:8px;text-align:center">ノードをドラッグして配置を調整 · クリックで事業詳細を開く</div>
-  </div>`}
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="font-weight:700">関係一覧 (${data.relations.length}件)</div>
-      <button class="btn sm" onclick="newRelation()">+ 追加</button>
-    </div>
-    ${pRelList()}
-  </div>
-  <div class="card">
-    <div style="font-weight:700;margin-bottom:10px">関係タイプ凡例</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px">
-      ${REL_TYPES.map(t=>`<span class="rel-badge" style="background:${t.bg};color:${t.color};font-size:.78rem;padding:4px 10px">${t.label}</span>`).join('')}
-    </div>
-  </div>`;
-}
-
-function pRelList() {
-  if(!data.relations.length) return '<div class="meta">関係がまだ登録されていません。</div>';
-  return data.relations.map(rel=>{
-    const fb=data.businesses.find(b=>b.id===rel.fromId);
-    const tb=data.businesses.find(b=>b.id===rel.toId);
-    const ti=relTypeInfo(rel.type);
-    const dir=rel.direction==='both'?'↔':'→';
-    return `<div class="rel-row">
-      <span class="rel-badge" style="background:${ti.bg};color:${ti.color}">${ti.label}</span>
-      <span style="font-size:.88rem;flex:1">
-        <strong>${esc(fb?fb.name:'?')}</strong>
-        <span style="margin:0 5px;color:${ti.color};font-weight:700">${dir}</span>
-        <strong>${esc(tb?tb.name:'?')}</strong>
-        ${rel.label?`<span class="meta"> — ${esc(rel.label)}</span>`:''}
-      </span>
-      <div style="display:flex;gap:5px">
-        <button class="btn sec sm" onclick="editRelation('${rel.id}')">編集</button>
-        <button class="btn del sm" onclick="delRelation('${rel.id}')">削除</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function pEditRelation(id, presetFromId) {
-  const rel=id?data.relations.find(x=>x.id===id):null;
-  const isNew=!rel;
-  const optFrom=data.businesses.map(b=>`<option value="${b.id}"${rel?rel.fromId===b.id?' selected':'':presetFromId===b.id?' selected':''}>${esc(b.name)}</option>`).join('');
-  const optTo  =data.businesses.map(b=>`<option value="${b.id}"${rel&&rel.toId===b.id?' selected':''}>${esc(b.name)}</option>`).join('');
-  return `
-  <div class="p-head"><span class="p-icon">🔗</span><div><div class="p-title">${isNew?'関係を追加':'関係を編集'}</div><div class="p-sub">事業間のつながりを定義する</div></div></div>
-  <div class="card">
-    <label>起点の事業 (From) *</label>
-    <select id="relFrom">${optFrom}</select>
-    <label>方向</label>
-    <select id="relDir">
-      <option value="forward"${!rel||rel.direction==='forward'?' selected':''}> → (FromがToに働きかける)</option>
-      <option value="both"${rel&&rel.direction==='both'?' selected':''}> ↔ (相互・双方向)</option>
-    </select>
-    <label>終点の事業 (To) *</label>
-    <select id="relTo">${optTo}</select>
-    <label>関係の種類</label>
-    <select id="relType">
-      ${REL_TYPES.map(t=>`<option value="${t.key}"${rel&&rel.type===t.key?' selected':''}>${t.label} — ${t.key==='synergy'?'互いに相乗効果がある':t.key==='customer'?'顧客・案件を紹介し合う':t.key==='resource'?'人・設備・知識を共有':t.key==='depend'?'一方が他方に依存している':'その他の関係'}</option>`).join('')}
-    </select>
-    <label>ラベル(短い説明)</label>
-    <input type="text" id="relLabel" value="${esc(rel?rel.label||'':'')}" placeholder="例: 顧客を送客, 共同マーケティング">
-    <label>詳細メモ</label>
-    <textarea id="relDesc">${esc(rel?rel.desc||'':'')}</textarea>
-    <div class="btn-row">
-      <button class="btn" onclick="saveRelation('${id||''}')">保存</button>
-      <button class="btn sec" onclick="go('relation-map')">キャンセル</button>
-    </div>
-  </div>`;
-}
-
-function newRelation(presetFromId) {
-  sel={type:'new-relation', id:presetFromId||null}; renderTree(); renderPanel();
-}
-function editRelation(id) { sel={type:'edit-relation',id}; renderTree(); renderPanel(); }
-function saveRelation(id) {
-  const fromId=document.getElementById('relFrom').value;
-  const toId  =document.getElementById('relTo').value;
-  if(!fromId||!toId){alert('事業を選択してください');return;}
-  if(fromId===toId){alert('同じ事業は選べません');return;}
-  const obj={fromId,toId,direction:document.getElementById('relDir').value,
-    type:document.getElementById('relType').value,
-    label:document.getElementById('relLabel').value.trim(),
-    desc:document.getElementById('relDesc').value.trim()};
-  let newId=id;
-  if(id){Object.assign(data.relations.find(x=>x.id===id),obj);}
-  else{newId=uid();data.relations.push({id:newId,...obj});}
-  sel={type:'relation-map',id:null}; persist();
-}
-function delRelation(id) {
-  if(!confirm('この関係を削除しますか?'))return;
-  data.relations=data.relations.filter(x=>x.id!==id);
-  persist('削除しました');
-}
-
-// ── Map Rendering ─────────────────────────────────────────
-function initMap() {
-  // Assign positions to new businesses
-  const unpos=data.businesses.filter(b=>!data.bizPositions[b.id]);
-  if(unpos.length){
-    const total=data.businesses.length;
-    unpos.forEach(b=>{
-      const i=data.businesses.indexOf(b);
-      const angle=(2*Math.PI*i/total)-Math.PI/2;
-      const r=total===1?0:Math.min(MAP_W*0.32,MAP_H*0.32);
-      data.bizPositions[b.id]={x:MAP_W/2+r*Math.cos(angle), y:MAP_H/2+r*Math.sin(angle)};
-    });
-    localStorage.setItem(STORE_KEY,JSON.stringify(data));
-  }
-  renderMapContent();
-}
-
-function resetMapPos() {
-  data.bizPositions={};
-  const total=data.businesses.length;
-  data.businesses.forEach((b,i)=>{
-    const angle=(2*Math.PI*i/total)-Math.PI/2;
-    const r=total===1?0:Math.min(MAP_W*0.32,MAP_H*0.32);
-    data.bizPositions[b.id]={x:MAP_W/2+r*Math.cos(angle), y:MAP_H/2+r*Math.sin(angle)};
-  });
-  localStorage.setItem(STORE_KEY,JSON.stringify(data));
-  renderMapContent();
-}
-
-function renderMapContent() {
-  const svgEl=document.getElementById('mapSVG');
-  const nodesEl=document.getElementById('mapNodes');
-  if(!svgEl||!nodesEl) return;
-
-  // SVG defs (arrowhead markers)
-  let defs='<defs>';
-  for(const t of REL_TYPES){
-    defs+=`<marker id="ah-${t.key}" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L9,4 z" fill="${t.color}"/></marker>`;
-    defs+=`<marker id="ah-r-${t.key}" markerWidth="9" markerHeight="9" refX="1" refY="4" orient="auto"><path d="M9,0 L9,8 L0,4 z" fill="${t.color}"/></marker>`;
-  }
-  defs+='</defs>';
-
-  // Draw relation lines
-  let lines='';
-  for(const rel of data.relations){
-    const fp=data.bizPositions[rel.fromId];
-    const tp=data.bizPositions[rel.toId];
-    if(!fp||!tp) continue;
-    const [x1,y1,x2,y2]=edgePts(fp.x,fp.y,tp.x,tp.y);
-    const ti=relTypeInfo(rel.type);
-    const mEnd=`url(#ah-${rel.type})`;
-    const mStart=rel.direction==='both'?`url(#ah-r-${rel.type})`:'none';
-    const mx=(x1+x2)/2, my=(y1+y2)/2;
-    lines+=`<line id="rl-${rel.id}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
-      stroke="${ti.color}" stroke-width="2.5" stroke-linecap="round"
-      marker-end="${mEnd}" marker-start="${mStart}" opacity="0.85"/>`;
-    if(rel.label){
-      lines+=`<text id="rl-lbl-${rel.id}" x="${mx.toFixed(1)}" y="${(my-8).toFixed(1)}" text-anchor="middle"
-        font-size="11" fill="${ti.color}" font-family="sans-serif"
-        style="paint-order:stroke;stroke:#fafbfc;stroke-width:4;stroke-linejoin:round">${esc(rel.label)}</text>`;
-    }
-  }
-  svgEl.innerHTML=defs+`<g>${lines}</g>`;
-
-  // Draw business nodes
-  let nodes='';
-  for(const b of data.businesses){
-    const pos=data.bizPositions[b.id];
-    if(!pos) continue;
-    const dc=dotColor[b.status]||'#9ca3af';
-    const name=b.name.length>12?b.name.slice(0,11)+'…':b.name;
-    nodes+=`<div class="map-node" data-id="${b.id}"
-      style="left:${(pos.x-NW).toFixed(1)}px;top:${(pos.y-NH).toFixed(1)}px"
-      onmousedown="startDrag(event,'${b.id}')">
-      <span style="width:9px;height:9px;border-radius:50%;background:${dc};flex-shrink:0"></span>
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
-    </div>`;
-  }
-  nodesEl.innerHTML=nodes;
-}
-
-function edgePts(x1,y1,x2,y2){
-  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1;
-  const ux=dx/len,uy=dy/len;
-  return [x1+ux*NW,y1+uy*NH,x2-ux*(NW+11),y2-uy*(NH+11)];
-}
-
-function updateRelArrows(id){
-  for(const rel of data.relations){
-    if(rel.fromId!==id&&rel.toId!==id) continue;
-    const fp=data.bizPositions[rel.fromId],tp=data.bizPositions[rel.toId];
-    if(!fp||!tp) continue;
-    const [x1,y1,x2,y2]=edgePts(fp.x,fp.y,tp.x,tp.y);
-    const line=document.getElementById('rl-'+rel.id);
-    if(line){line.setAttribute('x1',x1.toFixed(1));line.setAttribute('y1',y1.toFixed(1));line.setAttribute('x2',x2.toFixed(1));line.setAttribute('y2',y2.toFixed(1));}
-    const lbl=document.getElementById('rl-lbl-'+rel.id);
-    if(lbl){lbl.setAttribute('x',((x1+x2)/2).toFixed(1));lbl.setAttribute('y',((y1+y2)/2-8).toFixed(1));}
-  }
-}
-
-// ── Drag ─────────────────────────────────────────────────
-let dragState=null;
-function startDrag(e,id){
-  e.preventDefault();e.stopPropagation();
-  const container=document.getElementById('mapContainer');
-  if(!container) return;
-  const cr=container.getBoundingClientRect();
-  const pos=data.bizPositions[id]||{x:MAP_W/2,y:MAP_H/2};
-  dragState={id,startX:e.clientX,startY:e.clientY,origX:pos.x,origY:pos.y,
-    cLeft:cr.left,cTop:cr.top,moved:false};
-  const node=document.querySelector(`.map-node[data-id="${id}"]`);
-  if(node) node.classList.add('dragging');
-}
-document.addEventListener('mousemove',e=>{
-  if(!dragState) return;
-  const dx=e.clientX-dragState.startX,dy=e.clientY-dragState.startY;
-  if(!dragState.moved&&Math.sqrt(dx*dx+dy*dy)<4) return;
-  dragState.moved=true;
-  const nx=Math.max(NW,Math.min(MAP_W-NW,dragState.origX+dx));
-  const ny=Math.max(NH,Math.min(MAP_H-NH,dragState.origY+dy));
-  data.bizPositions[dragState.id]={x:nx,y:ny};
-  const node=document.querySelector(`.map-node[data-id="${dragState.id}"]`);
-  if(node){node.style.left=(nx-NW)+'px';node.style.top=(ny-NH)+'px';}
-  updateRelArrows(dragState.id);
-});
-document.addEventListener('mouseup',e=>{
-  if(!dragState) return;
-  const node=document.querySelector(`.map-node[data-id="${dragState.id}"]`);
-  if(node) node.classList.remove('dragging');
-  if(!dragState.moved){
-    go('business',dragState.id);
-  } else {
-    localStorage.setItem(STORE_KEY,JSON.stringify(data));
-    renderTree(); // update relation count badge
-  }
-  dragState=null;
-});
 
 // ── Notes ─────────────────────────────────────────────────
 function pNoteList() {
@@ -1584,7 +1264,7 @@ function importData(ev){
       const imp=JSON.parse(r.result);
       if(!imp.philosophy&&!imp.businesses) throw new Error('形式が違います');
       if(!confirm('現在のデータを上書きします。よろしいですか?')) return;
-      data=Object.assign({philosophy:{mission:'',vision:'',values:[],story:''},businesses:[],strategies:[],notes:[],relations:[],bizPositions:{},flowNodes:[],flowEdges:[]},imp);
+      data=Object.assign({philosophy:{mission:'',vision:'',values:[],story:''},businesses:[],strategies:[],notes:[],customers:[],flowNodes:[],flowEdges:[]},imp);
       sel={type:'dashboard',id:null}; persist('インポートしました');
     }catch(e){alert('読み込みに失敗しました: '+e.message);}
     ev.target.value='';
