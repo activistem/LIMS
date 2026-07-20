@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIMS</title>
+<style>
+:root {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --ink: #1f2937;
+  --sub: #6b7280;
+  --accent: #1e5f8a;
+  --accent-light: #e8f1f7;
+  --accent-dark: #14425f;
+  --border: #e5e7eb;
+  --green: #15803d;
+  --amber: #b45309;
+  --red: #b91c1c;
+  --gray: #6b7280;
+  --sidebar-w: 268px;
+  --header-h: 52px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.6;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* Header */
+header {
+  height: var(--header-h); flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  color: #fff; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  z-index: 100;
+}
+.h-left { display: flex; align-items: center; gap: 10px; }
+.h-title { font-size: .95rem; font-weight: 700; letter-spacing: .02em; }
+.h-sub { font-size: .7rem; opacity: .75; }
+.h-btns { display: flex; gap: 6px; }
+.h-btns button {
+  background: rgba(255,255,255,.15); color: #fff;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 5px;
+  padding: 4px 10px; cursor: pointer; font-size: .76rem;
+}
+.h-btns button:hover { background: rgba(255,255,255,.28); }
+.hamburger {
+  display: none; background: none; border: none; color: #fff;
+  font-size: 1.2rem; cursor: pointer; padding: 4px 6px; line-height: 1;
+}
+
+/* Layout */
+.layout { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: #fff; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: transform .22s;
+}
+.sidebar-scroll { flex: 1; overflow-y: auto; padding: 6px 0 16px; }
+
+/* Tree */
+.t-row {
+  display: flex; align-items: center; gap: 3px;
+  padding: 5px 8px 5px 0; cursor: pointer;
+  border-radius: 6px; margin: 1px 6px;
+  transition: background .1s; position: relative;
+}
+.t-row:hover { background: var(--accent-light); }
+.t-row.sel { background: var(--accent-light); }
+.t-row.sel .t-label { color: var(--accent); font-weight: 700; }
+.t-tog {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; color: var(--sub); border-radius: 3px;
+  transition: transform .15s;
+}
+.t-tog:hover { background: rgba(0,0,0,.07); }
+.t-tog.open { transform: rotate(90deg); }
+.t-tog.leaf { opacity: 0; pointer-events: none; }
+.t-icon { width: 18px; text-align: center; font-size: .85rem; flex-shrink: 0; }
+.t-label { font-size: .84rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.t-count {
+  font-size: .62rem; background: var(--accent-light); color: var(--accent);
+  padding: 1px 5px; border-radius: 999px; font-weight: 700; flex-shrink: 0;
+}
+.t-acts { display: none; gap: 1px; flex-shrink: 0; }
+.t-row:hover .t-acts { display: flex; }
+.t-acts button {
+  background: none; border: none; cursor: pointer; color: var(--sub);
+  font-size: .75rem; padding: 2px 4px; border-radius: 3px; line-height: 1;
+}
+.t-acts button:hover { background: rgba(0,0,0,.09); color: var(--ink); }
+.t-add { color: var(--accent) !important; font-weight: 700; font-size: .85rem !important; }
+.t-children { margin-left: 18px; }
+.t-children.collapsed { display: none; }
+.t-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin: 0 5px 0 5px; }
+
+/* Main panel */
+.main-panel { flex: 1; overflow-y: auto; padding: 22px; }
+
+.p-head {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin-bottom: 18px; flex-wrap: wrap;
+}
+.p-icon { font-size: 1.4rem; line-height: 1.2; }
+.p-title { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+.p-sub { font-size: .8rem; color: var(--sub); }
+.p-head-right { margin-left: auto; display: flex; gap: 7px; flex-wrap: wrap; }
+
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px; margin-bottom: 14px;
+}
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.stat { text-align: center; padding: 18px 8px; }
+.stat .num { font-size: 1.9rem; font-weight: 700; color: var(--accent); }
+.stat .lbl { font-size: .78rem; color: var(--sub); }
+
+label { display: block; font-size: .78rem; color: var(--sub); margin: 10px 0 3px; font-weight: 600; }
+input[type=text], input[type=date], input[type=number], textarea, select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
+  font-size: .9rem; font-family: inherit; background: #fff;
+}
+textarea { min-height: 88px; resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-light); border-color: var(--accent); }
+
+.btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 7px;
+  padding: 8px 16px; cursor: pointer; font-size: .88rem;
+}
+.btn:hover { filter: brightness(1.12); }
+.btn.sec { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+.btn.del { background: #fff; color: var(--red); border: 1px solid var(--red); }
+.btn.sm { padding: 4px 11px; font-size: .78rem; }
+.btn-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+.badge {
+  display: inline-block; font-size: .7rem; padding: 2px 9px;
+  border-radius: 999px; font-weight: 700; white-space: nowrap;
+}
+.b-plan { background: #f3f4f6; color: var(--gray); }
+.b-prep { background: #fef3c7; color: var(--amber); }
+.b-run  { background: #dcfce7; color: var(--green); }
+.b-stop { background: #fee2e2; color: var(--red); }
+
+.meta { font-size: .76rem; color: var(--sub); }
+.desc { font-size: .9rem; margin-top: 6px; white-space: pre-wrap; }
+
+.empty { color: var(--sub); font-size: .9rem; padding: 40px; text-align: center; }
+.hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+.hero {
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  color: #fff; border-radius: 10px; padding: 18px; margin-bottom: 14px;
+}
+.hero .hl { font-size: .68rem; opacity: .8; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.hero .ht { font-size: 1rem; margin-top: 3px; }
+
+.val-row { display: flex; gap: 7px; margin-bottom: 7px; }
+.val-row input { flex: 1; }
+
+.strat-mini {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.strat-mini:last-child { border-bottom: none; }
+.strat-mini:hover .sm-name { color: var(--accent); }
+.sm-name { flex: 1; font-size: .88rem; }
+.sm-p { font-size: .76rem; color: var(--sub); flex-shrink: 0; }
+
+.dash-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.dash-row:last-child { border-bottom: none; }
+.dash-row:hover { color: var(--accent); }
+
+/* Relation map */
+.map-node {
+  position: absolute; width: 130px; height: 46px;
+  background: #fff; border: 2px solid var(--accent); border-radius: 8px;
+  display: flex; align-items: center; gap: 7px; padding: 0 10px;
+  cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  font-size: 11px; font-weight: 600;
+}
+.map-node:hover { border-color: var(--accent-dark); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.map-node.dragging { cursor: grabbing; opacity: .85; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+
+.rel-badge {
+  font-size: .65rem; padding: 2px 7px; border-radius: 999px;
+  font-weight: 700; white-space: nowrap; flex-shrink: 0;
+}
+.rel-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.rel-row:last-child { border-bottom: none; }
+
+.saved-toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; padding: 7px 18px; border-radius: 999px;
+  font-size: .82rem; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 1000;
+}
+.saved-toast.show { opacity: 1; }
+
+@media (max-width: 640px) {
+  .hamburger { display: block; }
+  .sidebar {
+    position: fixed; top: var(--header-h); left: 0;
+    height: calc(100vh - var(--header-h)); z-index: 200;
+    transform: translateX(-100%);
+  }
+  .sidebar.open { transform: translateX(0); box-shadow: 4px 0 20px rgba(0,0,0,.2); }
+  .main-panel { padding: 14px; }
+}
+@media print {
+  .sidebar, .h-btns, .hamburger, .btn { display: none !important; }
+  .layout { display: block; }
+  .main-panel { padding: 0; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <button class="hamburger" onclick="toggleSidebar()">☰</button>
+    <div>
+      <div class="h-title">LIMS</div>
+      <div class="h-sub">理念・事業・戦略・関係の整理</div>
+    </div>
+  </div>
+  <div class="h-btns">
+    <button onclick="exportData()">⬇ エクスポート</button>
+    <button onclick="document.getElementById('importFile').click()">⬆ インポート</button>
+    <button onclick="window.print()">印刷</button>
+  </div>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-scroll" id="sidebarTree"></div>
+  </aside>
+  <main class="main-panel" id="mainPanel"></main>
+</div>
+
+<div class="saved-toast" id="toast">保存しました</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────
+const REL_TYPES = [
+  { key:'synergy',  label:'シナジー',     color:'#1e5f8a', bg:'#e8f1f7' },
+  { key:'customer', label:'顧客紹介',     color:'#15803d', bg:'#dcfce7' },
+  { key:'resource', label:'リソース共有', color:'#b45309', bg:'#fef3c7' },
+  { key:'depend',   label:'依存関係',     color:'#7c3aed', bg:'#ede9fe' },
+  { key:'other',    label:'その他',       color:'#6b7280', bg:'#f3f4f6' },
+];
+const relTypeInfo = k => REL_TYPES.find(t=>t.key===k) || REL_TYPES[4];
+const dotColor = { '構想中':'#9ca3af','準備中':'#b45309','運営中':'#15803d','休止中':'#b91c1c' };
+const bBadge = s => ({構想中:'b-plan',準備中:'b-prep',運営中:'b-run',休止中:'b-stop'}[s]||'b-plan');
+
+// ── Data ──────────────────────────────────────────────────
+const STORE_KEY = 'lims-data-v1';
+let data = {
+  philosophy: { mission:'', vision:'', values:[], story:'' },
+  businesses: [], strategies: [], notes: [],
+  relations: [],
+  bizPositions: {}
+};
+let sel = { type:'dashboard', id:null };
+let treeOpen = { philosophy:true, businesses:true, notes:true, common:true };
+
+function load() {
+  try {
+    const r = localStorage.getItem(STORE_KEY);
+    if (r) {
+      const parsed = JSON.parse(r);
+      data = Object.assign(data, parsed);
+      if (!data.relations)    data.relations = [];
+      if (!data.bizPositions) data.bizPositions = {};
+    }
+  } catch(e) { console.warn(e); }
+}
+function persist(msg) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  const t = document.getElementById('toast');
+  t.textContent = msg || '保存しました';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+  renderTree(); renderPanel();
+}
+const uid   = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const esc   = s => (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today = () => new Date().toISOString().slice(0,10);
+
+// ── Selection ─────────────────────────────────────────────
+function go(type, id=null) {
+  sel = { type, id };
+  document.getElementById('sidebar').classList.remove('open');
+  renderTree(); renderPanel();
+}
+function isSel(type, id=null) {
+  if (sel.type===type && sel.id===id) return true;
+  if (type==='businesses'      && sel.type==='new-business') return true;
+  if (type==='business'        && sel.type==='edit-business' && sel.id===id) return true;
+  if (type==='notes'           && sel.type==='new-note') return true;
+  if (type==='note'            && sel.type==='edit-note' && sel.id===id) return true;
+  if (type==='strategy'        && sel.type==='edit-strategy' && sel.id===id) return true;
+  if (type==='relation-map'    && (sel.type==='new-relation'||sel.type==='edit-relation')) return true;
+  return false;
+}
+
+// ── Sidebar Tree ──────────────────────────────────────────
+function tog(key, e) { e.stopPropagation(); treeOpen[key]=!treeOpen[key]; renderTree(); }
+
+function renderTree() {
+  let h = '';
+  h += tRow('dashboard',null,'🏠','ダッシュボード',false,false,'','','');
+
+  h += tRow('philosophy',null,'📋','理念',false,false,'');
+
+  const bizO = treeOpen.businesses;
+  h += `<div>`;
+  h += tRow('businesses',null,'🏢','事業',data.businesses.length>0,bizO,`tog('businesses',event)`,data.businesses.length,`<button onclick="event.stopPropagation();newBusiness()" class="t-add" title="追加">＋</button>`);
+  if(bizO){
+    h+=`<div class="t-children">`;
+    for(const b of data.businesses){
+      const bK='biz-'+b.id, bO=treeOpen[bK]!==false;
+      const bStr=data.strategies.filter(s=>s.bizId===b.id);
+      const dc=dotColor[b.status]||'#9ca3af';
+      h+=`<div>`;
+      h+=`<div class="t-row${(isSel('business',b.id)||isSel('edit-business',b.id))?' sel':''}" onclick="go('business','${b.id}')">
+        <span class="t-tog ${bStr.length>0?(bO?'open':''):'leaf'}" onclick="event.stopPropagation();tog('${bK}',event)">▶</span>
+        <span class="t-dot" style="background:${dc}"></span>
+        <span class="t-label">${esc(b.name)}</span>
+        <div class="t-acts">
+          <button onclick="event.stopPropagation();newStrategy('${b.id}')" class="t-add" title="戦略を追加">＋</button>
+          <button onclick="event.stopPropagation();editBusiness('${b.id}')" title="編集">✎</button>
+          <button onclick="event.stopPropagation();delBiz('${b.id}')" title="削除">✕</button>
+        </div>
+      </div>`;
+      if(bO&&bStr.length){h+=`<div class="t-children">`;for(const s of bStr){h+=tRowStrat(s);}h+=`</div>`;}
+      h+=`</div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`</div>`;
+
+  const cStr=data.strategies.filter(s=>!s.bizId);
+  const cO=treeOpen.common;
+  h+=`<div>`;
+  h+=tRow('common-strategies',null,'🎯','共通・全体戦略',cStr.length>0,cO,`tog('common',event)`,cStr.length||'',`<button onclick="event.stopPropagation();newStrategy('')" class="t-add" title="追加">＋</button>`);
+  if(cO&&cStr.length){h+=`<div class="t-children">`;for(const s of cStr){h+=tRowStrat(s);}h+=`</div>`;}
+  h+=`</div>`;
+
+  const relSel=isSel('relation-map')?' sel':'';
+  h+=`<div class="t-row${relSel}" onclick="go('relation-map')">
+    <span class="t-tog leaf">▶</span>
+    <span class="t-icon">🔗</span>
+    <span class="t-label">関係マップ</span>
+    ${data.relations.length?`<span class="t-count">${data.relations.length}</span>`:''}
+    <div class="t-acts">
+      <button onclick="event.stopPropagation();newRelation()" class="t-add" title="関係を追加">＋</button>
+    </div>
+  </div>`;
+
+  const noteO=treeOpen.notes;
+  h+=`<div>`;
+  h+=tRow('notes',null,'📝','メモ',data.notes.length>0,noteO,`tog('notes',event)`,data.notes.length,`<button onclick="event.stopPropagation();newNote()" class="t-add" title="追加">＋</button>`);
+  if(noteO){h+=`<div class="t-children">`;for(const n of data.notes){const nS=isSel('note',n.id)?' sel':'';h+=`<div class="t-row${nS}" onclick="go('note','${n.id}')"><span class="t-tog leaf">▶</span><span class="t-icon">🗒</span><span class="t-label">${esc(n.title)}</span><div class="t-acts"><button onclick="event.stopPropagation();editNote('${n.id}')" title="編集">✎</button><button onclick="event.stopPropagation();delNote('${n.id}')" title="削除">✕</button></div></div>`;}h+=`</div>`;}
+  h+=`</div>`;
+
+  document.getElementById('sidebarTree').innerHTML = h;
+}
+
+function tRow(type,id,icon,label,hasC,isO,togFn,count='',actHtml='') {
+  const s=isSel(type,id)?' sel':'';
+  const tc=hasC?(isO?'open':''):'leaf';
+  return `<div class="t-row${s}" onclick="go('${type}',${id?`'${id}'`:'null'})">
+    <span class="t-tog ${tc}" onclick="${togFn||'void 0'}">▶</span>
+    <span class="t-icon">${icon}</span>
+    <span class="t-label">${esc(label)}</span>
+    ${count?`<span class="t-count">${count}</span>`:''}
+    <div class="t-acts">${actHtml}</div>
+  </div>`;
+}
+function tRowStrat(s) {
+  return `<div><div class="t-row${isSel('strategy',s.id)?' sel':''}" onclick="go('strategy','${s.id}')">
+    <span class="t-tog leaf">▶</span><span class="t-icon" style="font-size:.7rem">🎯</span>
+    <span class="t-label">${esc(s.name)}</span>
+    <div class="t-acts">
+      <button onclick="event.stopPropagation();editStrategy('${s.id}')" title="編集">✎</button>
+      <button onclick="event.stopPropagation();delStrat('${s.id}')" title="削除">✕</button>
+    </div>
+  </div>
+  </div>`;
+}
+
+// ── Panel Dispatch ────────────────────────────────────────
+function renderPanel() {
+  const el = document.getElementById('mainPanel');
+  switch(sel.type) {
+    case 'dashboard':         el.innerHTML = pDashboard(); break;
+    case 'philosophy':
+    case 'philosophy-sub':    el.innerHTML = pPhilosophy(); break;
+    case 'businesses':        el.innerHTML = pBizList(); break;
+    case 'business':          el.innerHTML = pBiz(sel.id); break;
+    case 'new-business':      el.innerHTML = pEditBiz(null); break;
+    case 'edit-business':     el.innerHTML = pEditBiz(sel.id); break;
+    case 'common-strategies': el.innerHTML = pCommonStrats(); break;
+    case 'strategy':          el.innerHTML = pStrat(sel.id); break;
+    case 'new-strategy':      el.innerHTML = pEditStrat(null, sel.id); break;
+    case 'edit-strategy':     el.innerHTML = pEditStrat(sel.id); break;
+    case 'relation-map':      el.innerHTML = pRelationMap(); if(data.businesses.length>=1) setTimeout(initMap,0); break;
+    case 'new-relation':      el.innerHTML = pEditRelation(null, sel.id); break;
+    case 'edit-relation':     el.innerHTML = pEditRelation(sel.id); break;
+    case 'notes':             el.innerHTML = pNoteList(); break;
+    case 'note':              el.innerHTML = pNote(sel.id); break;
+    case 'new-note':          el.innerHTML = pEditNote(null); break;
+    case 'edit-note':         el.innerHTML = pEditNote(sel.id); break;
+    default:                  el.innerHTML = pDashboard();
+  }
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+function pDashboard() {
+  const p=data.philosophy;
+  return `
+  <div class="p-head"><span class="p-icon">🏠</span><div><div class="p-title">ダッシュボード</div></div></div>
+  <div class="hero">${p.mission?`<div class="hl">MISSION</div><div class="ht">${esc(p.mission)}</div>`:'<div style="opacity:.75">理念タブからミッションを登録しましょう。</div>'}</div>
+  <div class="grid2">
+    <div class="card stat"><div class="num">${data.businesses.length}</div><div class="lbl">事業数</div></div>
+    <div class="card stat"><div class="num">${data.businesses.filter(b=>b.status==='運営中').length}</div><div class="lbl">運営中</div></div>
+    <div class="card stat"><div class="num">${data.strategies.length}</div><div class="lbl">戦略・目標</div></div>
+    <div class="card stat"><div class="num">${data.relations.length}</div><div class="lbl">事業関係</div></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:700">事業一覧</div>
+      <button class="btn sm" onclick="newBusiness()">+ 追加</button>
+    </div>
+    ${data.businesses.length?data.businesses.map(b=>{
+      const bs=data.strategies.filter(s=>s.bizId===b.id);
+      return `<div class="dash-row" onclick="go('business','${b.id}')">
+        <span class="badge ${bBadge(b.status)}">${esc(b.status)}</span>
+        <span style="font-size:.88rem;flex:1">${esc(b.name)}</span>
+        <span class="meta">${bs.length}件の戦略</span>
+      </div>`;
+    }).join(''):'<div class="meta">まだ事業が登録されていません。</div>'}
+  </div>`;
+}
+
+// ── Philosophy ────────────────────────────────────────────
+function pPhilosophy() {
+  const p=data.philosophy;
+  return `
+  <div class="p-head"><span class="p-icon">📋</span><div><div class="p-title">理念</div><div class="p-sub">ミッション(使命) — なぜ存在するのか</div></div></div>
+  <div class="card">
+    <textarea id="phMission" rows="6" placeholder="例: 一人ひとりが自分らしい生き方と働き方を実現できる社会をつくる">${esc(p.mission||'')}</textarea>
+    <div class="btn-row"><button class="btn" onclick="savePhil()">保存</button></div>
+  </div>`;
+}
+function savePhil() {
+  data.philosophy.mission = document.getElementById('phMission').value.trim();
+  persist('理念を保存しました');
+}
+
+// ── Business ──────────────────────────────────────────────
+function pBizList() {
+  return `
+  <div class="p-head"><span class="p-icon">🏢</span><div><div class="p-title">事業</div><div class="p-sub">全${data.businesses.length}件</div></div>
+  <div class="p-head-right"><button class="btn sm" onclick="newBusiness()">+ 事業を追加</button></div></div>
+  ${!data.businesses.length?`<div class="card empty">まだ事業が登録されていません。<br><button class="btn" style="margin-top:14px" onclick="newBusiness()">+ 事業を追加</button></div>`:
+    data.businesses.map(b=>{
+      const bs=data.strategies.filter(s=>s.bizId===b.id);
+      return `<div class="card" style="cursor:pointer;border-left:4px solid var(--accent)" onclick="go('business','${b.id}')">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span class="badge ${bBadge(b.status)}">${esc(b.status)}</span>
+          <span style="font-weight:700;font-size:.98rem">${esc(b.name)}</span>
+        </div>
+        ${b.desc?`<div class="desc" style="font-size:.85rem;margin-bottom:8px">${esc(b.desc)}</div>`:''}
+        <div class="meta">${bs.length}件の戦略</div>
+      </div>`;
+    }).join('')}`;
+}
+
+function pBiz(id) {
+  const b=data.businesses.find(x=>x.id===id);
+  if(!b) return '<div class="empty">事業が見つかりません</div>';
+  const bs=data.strategies.filter(s=>s.bizId===id);
+  const rels=data.relations.filter(r=>r.fromId===id||r.toId===id);
+  return `
+  <div class="p-head">
+    <span class="p-icon">🏢</span>
+    <div><div class="p-title">${esc(b.name)}</div><div class="p-sub"><span class="badge ${bBadge(b.status)}">${esc(b.status)}</span></div></div>
+    <div class="p-head-right">
+      <button class="btn sec sm" onclick="editBusiness('${b.id}')">編集</button>
+      <button class="btn del sm" onclick="delBiz('${b.id}')">削除</button>
+    </div>
+  </div>
+  ${b.desc?`<div class="card"><div class="desc">${esc(b.desc)}</div></div>`:''}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:700">戦略・目標 (${bs.length}件)</div>
+      <button class="btn sm" onclick="newStrategy('${id}')">+ 戦略を追加</button>
+    </div>
+    ${bs.length?`<div style="margin-top:4px">${bs.map(s=>`
+      <div class="strat-mini" onclick="go('strategy','${s.id}')">
+        <span style="font-size:.8rem">🎯</span>
+        <span class="sm-name">${esc(s.name)}</span>
+      </div>`).join('')}</div>`:
+    '<div class="meta">まだ戦略が登録されていません。</div>'}
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:700">関連する事業 (${rels.length}件)</div>
+      <button class="btn sm" onclick="newRelation('${id}')">+ 関係を追加</button>
+    </div>
+    ${rels.length?rels.map(rel=>{
+      const isSrc=rel.fromId===id;
+      const other=data.businesses.find(b=>b.id===(isSrc?rel.toId:rel.fromId));
+      const ti=relTypeInfo(rel.type);
+      const dir=rel.direction==='both'?'↔':(isSrc?'→':'←');
+      return `<div class="rel-row" style="cursor:pointer" onclick="go('business','${other?other.id:''}')">
+        <span class="rel-badge" style="background:${ti.bg};color:${ti.color}">${ti.label}</span>
+        <span style="color:${ti.color};font-weight:700;font-size:1rem">${dir}</span>
+        <span style="font-size:.88rem;flex:1"><strong>${esc(other?other.name:'不明')}</strong>${rel.label?` <span class="meta">— ${esc(rel.label)}</span>`:''}</span>
+        <button class="btn sec sm" onclick="event.stopPropagation();editRelation('${rel.id}')">編集</button>
+      </div>`;
+    }).join(''):`<div class="meta">まだ関係が登録されていません。<br><a href="javascript:void(0)" onclick="go('relation-map')" style="color:var(--accent)">関係マップ</a>から追加できます。</div>`}
+  </div>`;
+}
+
+function pEditBiz(id) {
+  const b=id?data.businesses.find(x=>x.id===id):null;
+  return `
+  <div class="p-head"><span class="p-icon">🏢</span><div><div class="p-title">${b?'事業を編集':'事業を追加'}</div></div></div>
+  <div class="card">
+    <label>事業名 *</label>
+    <input type="text" id="bizName" value="${esc(b?b.name:'')}" placeholder="例: キャリア支援サービス" autofocus>
+    <label>ステータス</label>
+    <select id="bizStat">${['構想中','準備中','運営中','休止中'].map(s=>`<option${b&&b.status===s?' selected':''}>${s}</option>`).join('')}</select>
+    <label>概要</label>
+    <textarea id="bizDesc" placeholder="対象顧客、提供価値、収益モデルなど">${esc(b?b.desc||'':'')}</textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="saveBiz('${id||''}')">保存</button>
+      <button class="btn sec" onclick="${id?`go('business','${id}')`:"go('businesses')"}">キャンセル</button>
+    </div>
+  </div>`;
+}
+function newBusiness()    { sel={type:'new-business',id:null}; renderTree(); renderPanel(); }
+function editBusiness(id) { sel={type:'edit-business',id}; renderTree(); renderPanel(); }
+function saveBiz(id) {
+  const name=document.getElementById('bizName').value.trim();
+  if(!name){alert('事業名を入力してください');return;}
+  const obj={name,status:document.getElementById('bizStat').value,desc:document.getElementById('bizDesc').value.trim()};
+  let newId=id;
+  if(id){Object.assign(data.businesses.find(x=>x.id===id),obj);}
+  else{newId=uid();data.businesses.push({id:newId,...obj});}
+  sel={type:'business',id:newId}; persist();
+}
+function delBiz(id) {
+  if(!confirm('この事業を削除しますか?'))return;
+  data.businesses=data.businesses.filter(x=>x.id!==id);
+  data.strategies.forEach(s=>{if(s.bizId===id)s.bizId='';});
+  data.relations=data.relations.filter(r=>r.fromId!==id&&r.toId!==id);
+  delete data.bizPositions[id];
+  sel={type:'businesses',id:null}; persist('削除しました');
+}
+
+// ── Strategy ──────────────────────────────────────────────
+function pCommonStrats() {
+  const list=data.strategies.filter(s=>!s.bizId);
+  return `
+  <div class="p-head"><span class="p-icon">🎯</span><div><div class="p-title">共通・全体戦略</div><div class="p-sub">特定の事業に紐付かない戦略</div></div>
+  <div class="p-head-right"><button class="btn sm" onclick="newStrategy('')">+ 戦略を追加</button></div></div>
+  ${!list.length?'<div class="card empty">共通戦略がありません。</div>':list.map(s=>stratCard(s)).join('')}`;
+}
+function stratCard(s) {
+  const bz=data.businesses.find(b=>b.id===s.bizId);
+  return `<div class="card" style="cursor:pointer" onclick="go('strategy','${s.id}')">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <span>🎯</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:.95rem">${esc(s.name)}</div>
+        ${bz?`<div class="meta">事業: ${esc(bz.name)}</div>`:''}
+        ${s.desc?`<div class="desc" style="font-size:.84rem;margin-top:8px">${esc(s.desc)}</div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+function pStrat(id) {
+  const s=data.strategies.find(x=>x.id===id);
+  if(!s) return '<div class="empty">戦略が見つかりません</div>';
+  const bz=data.businesses.find(b=>b.id===s.bizId);
+  return `
+  <div class="p-head">
+    <span class="p-icon">🎯</span>
+    <div><div class="p-title">${esc(s.name)}</div><div class="p-sub">${bz?'事業: '+esc(bz.name):'共通・全体'}</div></div>
+    <div class="p-head-right">
+      <button class="btn sec sm" onclick="editStrategy('${s.id}')">編集</button>
+      <button class="btn del sm" onclick="delStrat('${s.id}')">削除</button>
+    </div>
+  </div>
+  ${s.desc?`<div class="card"><div class="desc">${esc(s.desc)}</div></div>`:''}
+  <div class="btn-row">
+    <button class="btn" onclick="editStrategy('${s.id}')">編集する</button>
+    ${bz?`<button class="btn sec" onclick="go('business','${bz.id}')">事業を見る</button>`:''}
+  </div>`;
+}
+function pEditStrat(id, presetBizId) {
+  const s=id?data.strategies.find(x=>x.id===id):null;
+  const isNew=!s;
+  const pbiz=presetBizId!=null?presetBizId:(s?s.bizId:'');
+  const opts=`<option value="">(共通・全体)</option>`+data.businesses.map(b=>`<option value="${b.id}"${pbiz===b.id?' selected':''}>${esc(b.name)}</option>`).join('');
+  const cancel=isNew?(pbiz?`go('business','${pbiz}')`:"go('common-strategies')"):`go('strategy','${id}')`;
+  return `
+  <div class="p-head"><span class="p-icon">🎯</span><div><div class="p-title">${isNew?'戦略を追加':'戦略を編集'}</div></div></div>
+  <div class="card">
+    <label>戦略・目標名 *</label>
+    <input type="text" id="sName" value="${esc(s?s.name:'')}" placeholder="例: SNSフォロワー1万人達成" autofocus>
+    <label>関連する事業</label>
+    <select id="sBiz">${opts}</select>
+    <label>詳細</label>
+    <textarea id="sDesc" placeholder="具体的な施策、KPI、次のアクションなど">${esc(s?s.desc||'':'')}</textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="saveStrat('${id||''}')">保存</button>
+      <button class="btn sec" onclick="${cancel}">キャンセル</button>
+    </div>
+  </div>`;
+}
+function newStrategy(bizId)  { sel={type:'new-strategy',id:bizId}; renderTree(); renderPanel(); }
+function editStrategy(id)    { sel={type:'edit-strategy',id}; renderTree(); renderPanel(); }
+function saveStrat(id) {
+  const name=document.getElementById('sName').value.trim();
+  if(!name){alert('戦略・目標名を入力してください');return;}
+  const obj={name,bizId:document.getElementById('sBiz').value,
+    desc:document.getElementById('sDesc').value.trim()};
+  let newId=id;
+  if(id){Object.assign(data.strategies.find(x=>x.id===id),obj);}
+  else{newId=uid();data.strategies.push({id:newId,...obj});}
+  sel={type:'strategy',id:newId}; persist();
+}
+function delStrat(id) {
+  if(!confirm('この戦略を削除しますか?'))return;
+  const s=data.strategies.find(x=>x.id===id);
+  const bz=s?.bizId;
+  data.strategies=data.strategies.filter(x=>x.id!==id);
+  sel=bz?{type:'business',id:bz}:{type:'common-strategies',id:null};
+  persist('削除しました');
+}
+
+// ── Relation Map ──────────────────────────────────────────
+const MAP_W=700, MAP_H=420, NW=65, NH=23;
+
+function pRelationMap() {
+  const hasBiz=data.businesses.length>=1;
+  return `
+  <div class="p-head">
+    <span class="p-icon">🔗</span>
+    <div><div class="p-title">事業関係マップ</div><div class="p-sub">事業間のつながりを視覚化・整理</div></div>
+    <div class="p-head-right">
+      ${hasBiz?`<button class="btn sec sm" onclick="resetMapPos()" title="ノードを再配置">⟲ 再配置</button>`:''}
+      <button class="btn sm" onclick="newRelation()">+ 関係を追加</button>
+    </div>
+  </div>
+  ${!hasBiz?'<div class="card empty">事業を追加してから関係を設定できます。</div>':`
+  <div class="card" style="padding:10px;overflow:auto">
+    <div id="mapContainer" style="position:relative;width:${MAP_W}px;height:${MAP_H}px;background:#fafbfc;border-radius:6px;border:1px solid var(--border);user-select:none">
+      <svg id="mapSVG" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;width:${MAP_W}px;height:${MAP_H}px;pointer-events:none;overflow:visible"></svg>
+      <div id="mapNodes" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>
+    </div>
+    <div class="meta" style="margin-top:8px;text-align:center">ノードをドラッグして配置を調整 · クリックで事業詳細を開く</div>
+  </div>`}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-weight:700">関係一覧 (${data.relations.length}件)</div>
+      <button class="btn sm" onclick="newRelation()">+ 追加</button>
+    </div>
+    ${pRelList()}
+  </div>
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:10px">関係タイプ凡例</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${REL_TYPES.map(t=>`<span class="rel-badge" style="background:${t.bg};color:${t.color};font-size:.78rem;padding:4px 10px">${t.label}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
+function pRelList() {
+  if(!data.relations.length) return '<div class="meta">関係がまだ登録されていません。</div>';
+  return data.relations.map(rel=>{
+    const fb=data.businesses.find(b=>b.id===rel.fromId);
+    const tb=data.businesses.find(b=>b.id===rel.toId);
+    const ti=relTypeInfo(rel.type);
+    const dir=rel.direction==='both'?'↔':'→';
+    return `<div class="rel-row">
+      <span class="rel-badge" style="background:${ti.bg};color:${ti.color}">${ti.label}</span>
+      <span style="font-size:.88rem;flex:1">
+        <strong>${esc(fb?fb.name:'?')}</strong>
+        <span style="margin:0 5px;color:${ti.color};font-weight:700">${dir}</span>
+        <strong>${esc(tb?tb.name:'?')}</strong>
+        ${rel.label?`<span class="meta"> — ${esc(rel.label)}</span>`:''}
+      </span>
+      <div style="display:flex;gap:5px">
+        <button class="btn sec sm" onclick="editRelation('${rel.id}')">編集</button>
+        <button class="btn del sm" onclick="delRelation('${rel.id}')">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function pEditRelation(id, presetFromId) {
+  const rel=id?data.relations.find(x=>x.id===id):null;
+  const isNew=!rel;
+  const optFrom=data.businesses.map(b=>`<option value="${b.id}"${rel?rel.fromId===b.id?' selected':'':presetFromId===b.id?' selected':''}>${esc(b.name)}</option>`).join('');
+  const optTo  =data.businesses.map(b=>`<option value="${b.id}"${rel&&rel.toId===b.id?' selected':''}>${esc(b.name)}</option>`).join('');
+  return `
+  <div class="p-head"><span class="p-icon">🔗</span><div><div class="p-title">${isNew?'関係を追加':'関係を編集'}</div><div class="p-sub">事業間のつながりを定義する</div></div></div>
+  <div class="card">
+    <label>起点の事業 (From) *</label>
+    <select id="relFrom">${optFrom}</select>
+    <label>方向</label>
+    <select id="relDir">
+      <option value="forward"${!rel||rel.direction==='forward'?' selected':''}> → (FromがToに働きかける)</option>
+      <option value="both"${rel&&rel.direction==='both'?' selected':''}> ↔ (相互・双方向)</option>
+    </select>
+    <label>終点の事業 (To) *</label>
+    <select id="relTo">${optTo}</select>
+    <label>関係の種類</label>
+    <select id="relType">
+      ${REL_TYPES.map(t=>`<option value="${t.key}"${rel&&rel.type===t.key?' selected':''}>${t.label} — ${t.key==='synergy'?'互いに相乗効果がある':t.key==='customer'?'顧客・案件を紹介し合う':t.key==='resource'?'人・設備・知識を共有':t.key==='depend'?'一方が他方に依存している':'その他の関係'}</option>`).join('')}
+    </select>
+    <label>ラベル(短い説明)</label>
+    <input type="text" id="relLabel" value="${esc(rel?rel.label||'':'')}" placeholder="例: 顧客を送客, 共同マーケティング">
+    <label>詳細メモ</label>
+    <textarea id="relDesc">${esc(rel?rel.desc||'':'')}</textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="saveRelation('${id||''}')">保存</button>
+      <button class="btn sec" onclick="go('relation-map')">キャンセル</button>
+    </div>
+  </div>`;
+}
+
+function newRelation(presetFromId) {
+  sel={type:'new-relation', id:presetFromId||null}; renderTree(); renderPanel();
+}
+function editRelation(id) { sel={type:'edit-relation',id}; renderTree(); renderPanel(); }
+function saveRelation(id) {
+  const fromId=document.getElementById('relFrom').value;
+  const toId  =document.getElementById('relTo').value;
+  if(!fromId||!toId){alert('事業を選択してください');return;}
+  if(fromId===toId){alert('同じ事業は選べません');return;}
+  const obj={fromId,toId,direction:document.getElementById('relDir').value,
+    type:document.getElementById('relType').value,
+    label:document.getElementById('relLabel').value.trim(),
+    desc:document.getElementById('relDesc').value.trim()};
+  let newId=id;
+  if(id){Object.assign(data.relations.find(x=>x.id===id),obj);}
+  else{newId=uid();data.relations.push({id:newId,...obj});}
+  sel={type:'relation-map',id:null}; persist();
+}
+function delRelation(id) {
+  if(!confirm('この関係を削除しますか?'))return;
+  data.relations=data.relations.filter(x=>x.id!==id);
+  persist('削除しました');
+}
+
+// ── Map Rendering ─────────────────────────────────────────
+function initMap() {
+  // Assign positions to new businesses
+  const unpos=data.businesses.filter(b=>!data.bizPositions[b.id]);
+  if(unpos.length){
+    const total=data.businesses.length;
+    unpos.forEach(b=>{
+      const i=data.businesses.indexOf(b);
+      const angle=(2*Math.PI*i/total)-Math.PI/2;
+      const r=total===1?0:Math.min(MAP_W*0.32,MAP_H*0.32);
+      data.bizPositions[b.id]={x:MAP_W/2+r*Math.cos(angle), y:MAP_H/2+r*Math.sin(angle)};
+    });
+    localStorage.setItem(STORE_KEY,JSON.stringify(data));
+  }
+  renderMapContent();
+}
+
+function resetMapPos() {
+  data.bizPositions={};
+  const total=data.businesses.length;
+  data.businesses.forEach((b,i)=>{
+    const angle=(2*Math.PI*i/total)-Math.PI/2;
+    const r=total===1?0:Math.min(MAP_W*0.32,MAP_H*0.32);
+    data.bizPositions[b.id]={x:MAP_W/2+r*Math.cos(angle), y:MAP_H/2+r*Math.sin(angle)};
+  });
+  localStorage.setItem(STORE_KEY,JSON.stringify(data));
+  renderMapContent();
+}
+
+function renderMapContent() {
+  const svgEl=document.getElementById('mapSVG');
+  const nodesEl=document.getElementById('mapNodes');
+  if(!svgEl||!nodesEl) return;
+
+  // SVG defs (arrowhead markers)
+  let defs='<defs>';
+  for(const t of REL_TYPES){
+    defs+=`<marker id="ah-${t.key}" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L9,4 z" fill="${t.color}"/></marker>`;
+    defs+=`<marker id="ah-r-${t.key}" markerWidth="9" markerHeight="9" refX="1" refY="4" orient="auto"><path d="M9,0 L9,8 L0,4 z" fill="${t.color}"/></marker>`;
+  }
+  defs+='</defs>';
+
+  // Draw relation lines
+  let lines='';
+  for(const rel of data.relations){
+    const fp=data.bizPositions[rel.fromId];
+    const tp=data.bizPositions[rel.toId];
+    if(!fp||!tp) continue;
+    const [x1,y1,x2,y2]=edgePts(fp.x,fp.y,tp.x,tp.y);
+    const ti=relTypeInfo(rel.type);
+    const mEnd=`url(#ah-${rel.type})`;
+    const mStart=rel.direction==='both'?`url(#ah-r-${rel.type})`:'none';
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    lines+=`<line id="rl-${rel.id}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
+      stroke="${ti.color}" stroke-width="2.5" stroke-linecap="round"
+      marker-end="${mEnd}" marker-start="${mStart}" opacity="0.85"/>`;
+    if(rel.label){
+      lines+=`<text id="rl-lbl-${rel.id}" x="${mx.toFixed(1)}" y="${(my-8).toFixed(1)}" text-anchor="middle"
+        font-size="11" fill="${ti.color}" font-family="sans-serif"
+        style="paint-order:stroke;stroke:#fafbfc;stroke-width:4;stroke-linejoin:round">${esc(rel.label)}</text>`;
+    }
+  }
+  svgEl.innerHTML=defs+`<g>${lines}</g>`;
+
+  // Draw business nodes
+  let nodes='';
+  for(const b of data.businesses){
+    const pos=data.bizPositions[b.id];
+    if(!pos) continue;
+    const dc=dotColor[b.status]||'#9ca3af';
+    const name=b.name.length>12?b.name.slice(0,11)+'…':b.name;
+    nodes+=`<div class="map-node" data-id="${b.id}"
+      style="left:${(pos.x-NW).toFixed(1)}px;top:${(pos.y-NH).toFixed(1)}px"
+      onmousedown="startDrag(event,'${b.id}')">
+      <span style="width:9px;height:9px;border-radius:50%;background:${dc};flex-shrink:0"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
+    </div>`;
+  }
+  nodesEl.innerHTML=nodes;
+}
+
+function edgePts(x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1;
+  const ux=dx/len,uy=dy/len;
+  return [x1+ux*NW,y1+uy*NH,x2-ux*(NW+11),y2-uy*(NH+11)];
+}
+
+function updateRelArrows(id){
+  for(const rel of data.relations){
+    if(rel.fromId!==id&&rel.toId!==id) continue;
+    const fp=data.bizPositions[rel.fromId],tp=data.bizPositions[rel.toId];
+    if(!fp||!tp) continue;
+    const [x1,y1,x2,y2]=edgePts(fp.x,fp.y,tp.x,tp.y);
+    const line=document.getElementById('rl-'+rel.id);
+    if(line){line.setAttribute('x1',x1.toFixed(1));line.setAttribute('y1',y1.toFixed(1));line.setAttribute('x2',x2.toFixed(1));line.setAttribute('y2',y2.toFixed(1));}
+    const lbl=document.getElementById('rl-lbl-'+rel.id);
+    if(lbl){lbl.setAttribute('x',((x1+x2)/2).toFixed(1));lbl.setAttribute('y',((y1+y2)/2-8).toFixed(1));}
+  }
+}
+
+// ── Drag ─────────────────────────────────────────────────
+let dragState=null;
+function startDrag(e,id){
+  e.preventDefault();e.stopPropagation();
+  const container=document.getElementById('mapContainer');
+  if(!container) return;
+  const cr=container.getBoundingClientRect();
+  const pos=data.bizPositions[id]||{x:MAP_W/2,y:MAP_H/2};
+  dragState={id,startX:e.clientX,startY:e.clientY,origX:pos.x,origY:pos.y,
+    cLeft:cr.left,cTop:cr.top,moved:false};
+  const node=document.querySelector(`.map-node[data-id="${id}"]`);
+  if(node) node.classList.add('dragging');
+}
+document.addEventListener('mousemove',e=>{
+  if(!dragState) return;
+  const dx=e.clientX-dragState.startX,dy=e.clientY-dragState.startY;
+  if(!dragState.moved&&Math.sqrt(dx*dx+dy*dy)<4) return;
+  dragState.moved=true;
+  const nx=Math.max(NW,Math.min(MAP_W-NW,dragState.origX+dx));
+  const ny=Math.max(NH,Math.min(MAP_H-NH,dragState.origY+dy));
+  data.bizPositions[dragState.id]={x:nx,y:ny};
+  const node=document.querySelector(`.map-node[data-id="${dragState.id}"]`);
+  if(node){node.style.left=(nx-NW)+'px';node.style.top=(ny-NH)+'px';}
+  updateRelArrows(dragState.id);
+});
+document.addEventListener('mouseup',e=>{
+  if(!dragState) return;
+  const node=document.querySelector(`.map-node[data-id="${dragState.id}"]`);
+  if(node) node.classList.remove('dragging');
+  if(!dragState.moved){
+    go('business',dragState.id);
+  } else {
+    localStorage.setItem(STORE_KEY,JSON.stringify(data));
+    renderTree(); // update relation count badge
+  }
+  dragState=null;
+});
+
+// ── Notes ─────────────────────────────────────────────────
+function pNoteList() {
+  return `
+  <div class="p-head"><span class="p-icon">📝</span><div><div class="p-title">メモ</div></div>
+  <div class="p-head-right"><button class="btn sm" onclick="newNote()">+ メモを追加</button></div></div>
+  <div style="margin-bottom:12px"><input type="text" id="nSearch" placeholder="メモを検索..." oninput="filterNotes()"></div>
+  <div id="nList">${notesHtml('')}</div>`;
+}
+function notesHtml(q){
+  const list=data.notes.filter(n=>!q||(n.title+n.body).toLowerCase().includes(q.toLowerCase()));
+  if(!list.length) return '<div class="card empty">メモがありません。</div>';
+  return list.map(n=>`<div class="card" style="cursor:pointer" onclick="go('note','${n.id}')">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+      <div style="font-weight:700;font-size:.92rem">${esc(n.title)}</div>
+      <span class="meta">${esc(n.updated||'')}</span>
+    </div>
+    ${n.body?`<div class="desc" style="font-size:.83rem;max-height:56px;overflow:hidden;margin-top:4px">${esc(n.body)}</div>`:''}</div>`).join('');
+}
+function filterNotes(){
+  document.getElementById('nList').innerHTML=notesHtml(document.getElementById('nSearch').value.trim());
+}
+function pNote(id){
+  const n=data.notes.find(x=>x.id===id);
+  if(!n) return '<div class="empty">メモが見つかりません</div>';
+  return `
+  <div class="p-head"><span class="p-icon">🗒</span>
+    <div><div class="p-title">${esc(n.title)}</div><div class="p-sub">${esc(n.updated||'')}</div></div>
+    <div class="p-head-right">
+      <button class="btn sec sm" onclick="editNote('${n.id}')">編集</button>
+      <button class="btn del sm" onclick="delNote('${n.id}')">削除</button>
+    </div>
+  </div>
+  <div class="card">${n.body?`<div class="desc">${esc(n.body)}</div>`:'<div class="meta">内容がありません</div>'}</div>`;
+}
+function pEditNote(id){
+  const n=id?data.notes.find(x=>x.id===id):null;
+  return `
+  <div class="p-head"><span class="p-icon">📝</span><div><div class="p-title">${n?'メモを編集':'メモを追加'}</div></div></div>
+  <div class="card">
+    <label>タイトル *</label><input type="text" id="nTitle" value="${esc(n?n.title:'')}" autofocus>
+    <label>内容</label><textarea id="nBody" style="min-height:200px">${esc(n?n.body||'':'')}</textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="saveNote('${id||''}')">保存</button>
+      <button class="btn sec" onclick="${id?`go('note','${id}')`:"go('notes')"}">キャンセル</button>
+    </div>
+  </div>`;
+}
+function newNote()    { sel={type:'new-note',id:null}; renderTree(); renderPanel(); }
+function editNote(id) { sel={type:'edit-note',id}; renderTree(); renderPanel(); }
+function saveNote(id){
+  const title=document.getElementById('nTitle').value.trim();
+  if(!title){alert('タイトルを入力してください');return;}
+  const body=document.getElementById('nBody').value.trim(),now=today();
+  let newId=id;
+  if(id){Object.assign(data.notes.find(x=>x.id===id),{title,body,updated:now});}
+  else{newId=uid();data.notes.unshift({id:newId,title,body,updated:now});}
+  sel={type:'note',id:newId}; persist();
+}
+function delNote(id){
+  if(!confirm('このメモを削除しますか?'))return;
+  data.notes=data.notes.filter(x=>x.id!==id);
+  sel={type:'notes',id:null}; persist('削除しました');
+}
+
+// ── Export / Import ───────────────────────────────────────
+function exportData(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download='LIMS-backup-'+today()+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function importData(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const imp=JSON.parse(r.result);
+      if(!imp.philosophy&&!imp.businesses) throw new Error('形式が違います');
+      if(!confirm('現在のデータを上書きします。よろしいですか?')) return;
+      data=Object.assign({philosophy:{mission:'',vision:'',values:[],story:''},businesses:[],strategies:[],notes:[],relations:[],bizPositions:{}},imp);
+      sel={type:'dashboard',id:null}; persist('インポートしました');
+    }catch(e){alert('読み込みに失敗しました: '+e.message);}
+    ev.target.value='';
+  };
+  r.readAsText(file);
+}
+
+// ── Misc ──────────────────────────────────────────────────
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('open'); }
+
+// ── Init ──────────────────────────────────────────────────
+load(); renderTree(); renderPanel();
+</script>
+</body>
+</html>
