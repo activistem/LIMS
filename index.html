@@ -98,8 +98,6 @@ header {
 .t-add { color: var(--accent) !important; font-weight: 700; font-size: .85rem !important; }
 .t-children { margin-left: 18px; }
 .t-children.collapsed { display: none; }
-.t-prog { height: 3px; background: #edf0f4; border-radius: 999px; margin: 0 6px 2px 40px; overflow: hidden; }
-.t-prog-bar { height: 100%; background: var(--accent); border-radius: 999px; }
 .t-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin: 0 5px 0 5px; }
 
 /* Main panel */
@@ -152,8 +150,6 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-ligh
 
 .meta { font-size: .76rem; color: var(--sub); }
 .desc { font-size: .9rem; margin-top: 6px; white-space: pre-wrap; }
-.pw { background: #edf0f4; border-radius: 999px; height: 8px; overflow: hidden; margin-top: 8px; }
-.pb { height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
 
 .empty { color: var(--sub); font-size: .9rem; padding: 40px; text-align: center; }
 .hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
@@ -403,7 +399,7 @@ function tRowStrat(s) {
       <button onclick="event.stopPropagation();delStrat('${s.id}')" title="削除">✕</button>
     </div>
   </div>
-  <div class="t-prog"><div class="t-prog-bar" style="width:${s.progress||0}%"></div></div></div>`;
+  </div>`;
 }
 
 // ── Panel Dispatch ────────────────────────────────────────
@@ -435,8 +431,7 @@ function renderPanel() {
 // ── Dashboard ─────────────────────────────────────────────
 function pDashboard() {
   const p=data.philosophy;
-  const avg=data.strategies.length?Math.round(data.strategies.reduce((a,s)=>a+(s.progress||0),0)/data.strategies.length):0;
-  const upcoming=data.strategies.filter(s=>s.due&&s.progress<100).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,6);
+  const upcoming=data.strategies.filter(s=>s.due).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,6);
   const td=today();
   return `
   <div class="p-head"><span class="p-icon">🏠</span><div><div class="p-title">ダッシュボード</div></div></div>
@@ -445,19 +440,17 @@ function pDashboard() {
     <div class="card stat"><div class="num">${data.businesses.length}</div><div class="lbl">事業数</div></div>
     <div class="card stat"><div class="num">${data.businesses.filter(b=>b.status==='運営中').length}</div><div class="lbl">運営中</div></div>
     <div class="card stat"><div class="num">${data.strategies.length}</div><div class="lbl">戦略・目標</div></div>
-    <div class="card stat"><div class="num">${avg}%</div><div class="lbl">平均進捗</div></div>
+    <div class="card stat"><div class="num">${data.relations.length}</div><div class="lbl">事業関係</div></div>
   </div>
   <div class="card">
     <div style="font-weight:700;margin-bottom:10px">期限が近い戦略</div>
     ${upcoming.length?upcoming.map(s=>{
       const ov=s.due<td;const bz=data.businesses.find(b=>b.id===s.bizId);
       return `<div class="dash-row" onclick="go('strategy','${s.id}')">
-        <div style="flex:1"><div style="font-size:.88rem">${ov?'<span style="color:var(--red);font-weight:700">⚠ </span>':''}${esc(s.name)}</div>
-        <div class="meta">${esc(s.due)}${bz?' · '+esc(bz.name):' · 共通'}</div></div>
-        <div style="text-align:right;flex-shrink:0"><div style="font-size:.82rem;color:var(--accent);font-weight:700">${s.progress}%</div>
-        <div class="pw" style="width:72px;height:5px;margin-top:3px"><div class="pb" style="width:${s.progress}%"></div></div></div>
+        <div style="font-size:.88rem">${ov?'<span style="color:var(--red);font-weight:700">⚠ </span>':''}${esc(s.name)}</div>
+        <div class="meta">${esc(s.due)}${bz?' · '+esc(bz.name):' · 共通'}</div>
       </div>`;
-    }).join(''):'<div class="meta">期限付きの未完了戦略はありません。</div>'}
+    }).join(''):'<div class="meta">期限付きの戦略はありません。</div>'}
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -466,11 +459,10 @@ function pDashboard() {
     </div>
     ${data.businesses.length?data.businesses.map(b=>{
       const bs=data.strategies.filter(s=>s.bizId===b.id);
-      const ba=bs.length?Math.round(bs.reduce((a,s)=>a+(s.progress||0),0)/bs.length):0;
       return `<div class="dash-row" onclick="go('business','${b.id}')">
         <span class="badge ${bBadge(b.status)}">${esc(b.status)}</span>
         <span style="font-size:.88rem;flex:1">${esc(b.name)}</span>
-        <span class="meta">${bs.length}戦略 · ${ba}%</span>
+        <span class="meta">${bs.length}件の戦略</span>
       </div>`;
     }).join(''):'<div class="meta">まだ事業が登録されていません。</div>'}
   </div>`;
@@ -499,15 +491,13 @@ function pBizList() {
   ${!data.businesses.length?`<div class="card empty">まだ事業が登録されていません。<br><button class="btn" style="margin-top:14px" onclick="newBusiness()">+ 事業を追加</button></div>`:
     data.businesses.map(b=>{
       const bs=data.strategies.filter(s=>s.bizId===b.id);
-      const ba=bs.length?Math.round(bs.reduce((a,s)=>a+(s.progress||0),0)/bs.length):0;
       return `<div class="card" style="cursor:pointer;border-left:4px solid var(--accent)" onclick="go('business','${b.id}')">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
           <span class="badge ${bBadge(b.status)}">${esc(b.status)}</span>
           <span style="font-weight:700;font-size:.98rem">${esc(b.name)}</span>
         </div>
         ${b.desc?`<div class="desc" style="font-size:.85rem;margin-bottom:8px">${esc(b.desc)}</div>`:''}
-        <div class="meta">${bs.length}件の戦略 · 平均進捗 ${ba}%</div>
-        <div class="pw"><div class="pb" style="width:${ba}%"></div></div>
+        <div class="meta">${bs.length}件の戦略</div>
       </div>`;
     }).join('')}`;
 }
@@ -516,7 +506,6 @@ function pBiz(id) {
   const b=data.businesses.find(x=>x.id===id);
   if(!b) return '<div class="empty">事業が見つかりません</div>';
   const bs=data.strategies.filter(s=>s.bizId===id);
-  const ba=bs.length?Math.round(bs.reduce((a,s)=>a+(s.progress||0),0)/bs.length):0;
   const rels=data.relations.filter(r=>r.fromId===id||r.toId===id);
   return `
   <div class="p-head">
@@ -533,15 +522,12 @@ function pBiz(id) {
       <div style="font-weight:700">戦略・目標 (${bs.length}件)</div>
       <button class="btn sm" onclick="newStrategy('${id}')">+ 戦略を追加</button>
     </div>
-    ${bs.length?`<div class="meta" style="margin-bottom:4px">平均進捗 ${ba}%</div>
-    <div class="pw"><div class="pb" style="width:${ba}%"></div></div>
-    <div style="margin-top:12px">${bs.map(s=>`
+    ${bs.length?`<div style="margin-top:4px">${bs.map(s=>`
       <div class="strat-mini" onclick="go('strategy','${s.id}')">
         <span style="font-size:.8rem">🎯</span>
         <span class="sm-name">${esc(s.name)}</span>
-        <span class="sm-p">${s.due?esc(s.due)+' · ':''}${s.progress}%</span>
-      </div>
-      <div class="pw" style="height:3px;margin:0 0 4px 24px"><div class="pb" style="width:${s.progress}%"></div></div>`).join('')}</div>`:
+        ${s.due?`<span class="sm-p">${esc(s.due)}</span>`:''}
+      </div>`).join('')}</div>`:
     '<div class="meta">まだ戦略が登録されていません。</div>'}
   </div>
   <div class="card">
@@ -611,15 +597,14 @@ function pCommonStrats() {
 }
 function stratCard(s) {
   const bz=data.businesses.find(b=>b.id===s.bizId);
-  const ov=s.due&&s.due<today()&&s.progress<100;
+  const ov=s.due&&s.due<today();
   return `<div class="card" style="cursor:pointer" onclick="go('strategy','${s.id}')">
     <div style="display:flex;align-items:flex-start;gap:10px">
       <span>🎯</span>
       <div style="flex:1">
         <div style="font-weight:700;font-size:.95rem">${ov?'<span style="color:var(--red)">⚠ </span>':''}${esc(s.name)}</div>
         ${bz?`<div class="meta">事業: ${esc(bz.name)}</div>`:''}
-        <div class="meta">${s.due?'期限: '+esc(s.due)+' · ':''}進捗: ${s.progress}%</div>
-        <div class="pw"><div class="pb" style="width:${s.progress}%"></div></div>
+        ${s.due?`<div class="meta">期限: ${esc(s.due)}</div>`:''}
         ${s.desc?`<div class="desc" style="font-size:.84rem;margin-top:8px">${esc(s.desc)}</div>`:''}
       </div>
     </div>
@@ -629,7 +614,7 @@ function pStrat(id) {
   const s=data.strategies.find(x=>x.id===id);
   if(!s) return '<div class="empty">戦略が見つかりません</div>';
   const bz=data.businesses.find(b=>b.id===s.bizId);
-  const ov=s.due&&s.due<today()&&s.progress<100;
+  const ov=s.due&&s.due<today();
   return `
   <div class="p-head">
     <span class="p-icon">🎯</span>
@@ -642,10 +627,8 @@ function pStrat(id) {
   <div class="card">
     <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px">
       <div><div class="meta">期限</div><div style="font-weight:700;color:${ov?'var(--red)':'var(--ink)'}">${s.due||'未設定'}${ov?' (超過)':''}</div></div>
-      <div><div class="meta">進捗</div><div style="font-weight:700;font-size:1.4rem;color:var(--accent)">${s.progress}%</div></div>
     </div>
-    <div class="pw" style="height:12px"><div class="pb" style="width:${s.progress}%"></div></div>
-    ${s.desc?`<hr class="hr"><div class="desc">${esc(s.desc)}</div>`:''}
+    ${s.desc?`<div class="desc">${esc(s.desc)}</div>`:''}
   </div>
   <div class="btn-row">
     <button class="btn" onclick="editStrategy('${s.id}')">編集する</button>
@@ -667,8 +650,6 @@ function pEditStrat(id, presetBizId) {
     <select id="sBiz">${opts}</select>
     <label>期限</label>
     <input type="date" id="sDue" value="${esc(s?s.due||'':'')}">
-    <label>進捗 (%)</label>
-    <input type="number" id="sProg" min="0" max="100" value="${s?s.progress||0:0}">
     <label>詳細・アクションプラン</label>
     <textarea id="sDesc" placeholder="具体的な施策、KPI、次のアクションなど">${esc(s?s.desc||'':'')}</textarea>
     <div class="btn-row">
@@ -683,7 +664,6 @@ function saveStrat(id) {
   const name=document.getElementById('sName').value.trim();
   if(!name){alert('戦略・目標名を入力してください');return;}
   const obj={name,bizId:document.getElementById('sBiz').value,due:document.getElementById('sDue').value,
-    progress:Math.min(100,Math.max(0,Number(document.getElementById('sProg').value)||0)),
     desc:document.getElementById('sDesc').value.trim()};
   let newId=id;
   if(id){Object.assign(data.strategies.find(x=>x.id===id),obj);}
