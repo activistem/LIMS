@@ -223,6 +223,38 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-ligh
   .layout { display: block; }
   .main-panel { padding: 0; }
 }
+
+/* Customer */
+.cust-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.cust-row:last-child { border-bottom: none; }
+.cust-row:hover .cust-name { color: var(--accent); }
+.cust-name { flex: 1; font-size: .92rem; font-weight: 600; }
+.cs-badge {
+  font-size: .65rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap;
+}
+.cs-cand    { background:#f3f4f6; color:#6b7280; }
+.cs-app     { background:#fef3c7; color:#b45309; }
+.cs-nego    { background:#e8f1f7; color:#1e5f8a; }
+.cs-done    { background:#dcfce7; color:#15803d; }
+.cs-pass    { background:#fee2e2; color:#b91c1c; }
+
+/* CSV modal */
+.modal-bg {
+  position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:500;
+  display:flex; align-items:center; justify-content:center;
+}
+.modal {
+  background:#fff; border-radius:12px; padding:24px; width:min(600px,94vw);
+  max-height:85vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.2);
+}
+.modal h3 { font-size:1rem; font-weight:700; margin-bottom:14px; color:var(--accent); }
+.csv-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.csv-grid label { font-size:.76rem; color:var(--sub); font-weight:600; margin-bottom:2px; }
+.csv-grid select { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:.82rem; }
+.csv-preview { font-size:.76rem; color:var(--sub); background:var(--bg); border-radius:6px; padding:8px 10px; margin-bottom:14px; overflow-x:auto; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -270,11 +302,11 @@ const STORE_KEY = 'lims-data-v1';
 let data = {
   philosophy: { mission:'', vision:'', values:[], story:'' },
   businesses: [], strategies: [], notes: [],
-  relations: [],
+  relations: [], customers: [],
   bizPositions: {}
 };
 let sel = { type:'dashboard', id:null };
-let treeOpen = { philosophy:true, businesses:true, notes:true, common:true };
+let treeOpen = { philosophy:true, businesses:true, notes:true, common:true, customers:true };
 
 function load() {
   try {
@@ -284,6 +316,7 @@ function load() {
       data = Object.assign(data, parsed);
       if (!data.relations)    data.relations = [];
       if (!data.bizPositions) data.bizPositions = {};
+      if (!data.customers)    data.customers = [];
     }
   } catch(e) { console.warn(e); }
 }
@@ -313,6 +346,8 @@ function isSel(type, id=null) {
   if (type==='note'            && sel.type==='edit-note' && sel.id===id) return true;
   if (type==='strategy'        && sel.type==='edit-strategy' && sel.id===id) return true;
   if (type==='relation-map'    && (sel.type==='new-relation'||sel.type==='edit-relation')) return true;
+  if (type==='customers'       && sel.type==='new-customer') return true;
+  if (type==='customer'        && sel.type==='edit-customer' && sel.id===id) return true;
   return false;
 }
 
@@ -376,6 +411,12 @@ function renderTree() {
   if(noteO){h+=`<div class="t-children">`;for(const n of data.notes){const nS=isSel('note',n.id)?' sel':'';h+=`<div class="t-row${nS}" onclick="go('note','${n.id}')"><span class="t-tog leaf">▶</span><span class="t-icon">🗒</span><span class="t-label">${esc(n.title)}</span><div class="t-acts"><button onclick="event.stopPropagation();editNote('${n.id}')" title="編集">✎</button><button onclick="event.stopPropagation();delNote('${n.id}')" title="削除">✕</button></div></div>`;}h+=`</div>`;}
   h+=`</div>`;
 
+  const custO=treeOpen.customers;
+  h+=`<div>`;
+  h+=tRow('customers',null,'👥','顧客候補',data.customers.length>0,custO,`tog('customers',event)`,data.customers.length,`<button onclick="event.stopPropagation();newCustomer()" class="t-add" title="追加">＋</button>`);
+  if(custO){h+=`<div class="t-children">`;for(const c of data.customers){const cS=isSel('customer',c.id)?' sel':'';h+=`<div class="t-row${cS}" onclick="go('customer','${c.id}')"><span class="t-tog leaf">▶</span><span class="t-icon">👤</span><span class="t-label">${esc(c.name)}</span><div class="t-acts"><button onclick="event.stopPropagation();editCustomer('${c.id}')" title="編集">✎</button><button onclick="event.stopPropagation();delCustomer('${c.id}')" title="削除">✕</button></div></div>`;}h+=`</div>`;}
+  h+=`</div>`;
+
   document.getElementById('sidebarTree').innerHTML = h;
 }
 
@@ -424,6 +465,10 @@ function renderPanel() {
     case 'note':              el.innerHTML = pNote(sel.id); break;
     case 'new-note':          el.innerHTML = pEditNote(null); break;
     case 'edit-note':         el.innerHTML = pEditNote(sel.id); break;
+    case 'customers':         el.innerHTML = pCustomerList(); break;
+    case 'customer':          el.innerHTML = pCustomer(sel.id); break;
+    case 'new-customer':      el.innerHTML = pEditCustomer(null); break;
+    case 'edit-customer':     el.innerHTML = pEditCustomer(sel.id); break;
     default:                  el.innerHTML = pDashboard();
   }
 }
@@ -972,6 +1017,230 @@ function delNote(id){
   if(!confirm('このメモを削除しますか?'))return;
   data.notes=data.notes.filter(x=>x.id!==id);
   sel={type:'notes',id:null}; persist('削除しました');
+}
+
+// ── Customers ─────────────────────────────────────────────
+const CUST_STATUSES = ['候補','アプローチ済','商談中','契約済','見送り'];
+const csBadge = s => ({候補:'cs-cand',アプローチ済:'cs-app',商談中:'cs-nego',契約済:'cs-done',見送り:'cs-pass'}[s]||'cs-cand');
+
+function pCustomerList() {
+  const q = ''; // filtered later via input
+  return `
+  <div class="p-head">
+    <span class="p-icon">👥</span>
+    <div><div class="p-title">顧客候補</div><div class="p-sub">全${data.customers.length}件</div></div>
+    <div class="p-head-right">
+      <button class="btn sm" onclick="showCsvModal()">CSVインポート</button>
+      <button class="btn sm" onclick="newCustomer()">+ 追加</button>
+    </div>
+  </div>
+  <div style="margin-bottom:12px;display:flex;gap:8px">
+    <input type="text" id="custSearch" placeholder="名前・会社名で検索..." oninput="filterCustomers()" style="flex:1">
+    <select id="custStatusFilter" onchange="filterCustomers()">
+      <option value="">すべてのステータス</option>
+      ${CUST_STATUSES.map(s=>`<option>${s}</option>`).join('')}
+    </select>
+  </div>
+  <div id="custList">${custListHtml('','')}</div>`;
+}
+function custListHtml(q, sf) {
+  let list = data.customers;
+  if(q) list = list.filter(c=>(c.name+c.company).toLowerCase().includes(q.toLowerCase()));
+  if(sf) list = list.filter(c=>c.status===sf);
+  if(!list.length) return '<div class="card empty">顧客候補がありません。</div>';
+  return list.map(c=>{
+    const bz = data.businesses.find(b=>b.id===c.bizId);
+    return `<div class="card" style="cursor:pointer;padding:14px 18px" onclick="go('customer','${c.id}')">
+      <div class="cust-row" style="padding:0;border:none">
+        <span class="cs-badge ${csBadge(c.status)}">${esc(c.status)}</span>
+        <span class="cust-name">${esc(c.name)}</span>
+        ${c.company?`<span class="meta" style="flex-shrink:0">${esc(c.company)}</span>`:''}
+      </div>
+      ${(c.contact||bz)?`<div class="meta" style="margin-top:4px">${[c.contact?esc(c.contact):'',bz?'事業: '+esc(bz.name):''].filter(Boolean).join(' · ')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function filterCustomers() {
+  const q = document.getElementById('custSearch')?.value.trim()||'';
+  const sf = document.getElementById('custStatusFilter')?.value||'';
+  document.getElementById('custList').innerHTML = custListHtml(q, sf);
+}
+
+function pCustomer(id) {
+  const c = data.customers.find(x=>x.id===id);
+  if(!c) return '<div class="empty">顧客候補が見つかりません</div>';
+  const bz = data.businesses.find(b=>b.id===c.bizId);
+  return `
+  <div class="p-head">
+    <span class="p-icon">👤</span>
+    <div><div class="p-title">${esc(c.name)}</div><div class="p-sub">${c.company?esc(c.company):''}</div></div>
+    <div class="p-head-right">
+      <button class="btn sec sm" onclick="editCustomer('${c.id}')">編集</button>
+      <button class="btn del sm" onclick="delCustomer('${c.id}')">削除</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:${c.note?'14px':'0'}">
+      <div><div class="meta">ステータス</div><span class="cs-badge ${csBadge(c.status)}">${esc(c.status)}</span></div>
+      ${c.contact?`<div><div class="meta">連絡先</div><div style="font-size:.9rem">${esc(c.contact)}</div></div>`:''}
+      ${bz?`<div><div class="meta">関連事業</div><div style="font-size:.9rem;cursor:pointer;color:var(--accent)" onclick="go('business','${bz.id}')">${esc(bz.name)}</div></div>`:''}
+    </div>
+    ${c.note?`<hr class="hr"><div class="desc">${esc(c.note)}</div>`:''}
+  </div>
+  <div class="btn-row">
+    <button class="btn" onclick="editCustomer('${c.id}')">編集する</button>
+  </div>`;
+}
+
+function pEditCustomer(id) {
+  const c = id ? data.customers.find(x=>x.id===id) : null;
+  const opts = `<option value="">(なし)</option>`+data.businesses.map(b=>`<option value="${b.id}"${c&&c.bizId===b.id?' selected':''}>${esc(b.name)}</option>`).join('');
+  return `
+  <div class="p-head"><span class="p-icon">👤</span><div><div class="p-title">${c?'顧客候補を編集':'顧客候補を追加'}</div></div></div>
+  <div class="card">
+    <label>名前 *</label>
+    <input type="text" id="cName" value="${esc(c?c.name:'')}" placeholder="例: 山田 太郎" autofocus>
+    <label>会社名</label>
+    <input type="text" id="cCompany" value="${esc(c?c.company||'':'')}" placeholder="例: 株式会社〇〇">
+    <label>ステータス</label>
+    <select id="cStatus">${CUST_STATUSES.map(s=>`<option${c&&c.status===s?' selected':''}>${s}</option>`).join('')}</select>
+    <label>連絡先（メール・電話など）</label>
+    <input type="text" id="cContact" value="${esc(c?c.contact||'':'')}" placeholder="例: taro@example.com">
+    <label>関連事業</label>
+    <select id="cBiz">${opts}</select>
+    <label>メモ</label>
+    <textarea id="cNote" placeholder="アプローチ内容、特記事項など">${esc(c?c.note||'':'')}</textarea>
+    <div class="btn-row">
+      <button class="btn" onclick="saveCustomer('${id||''}')">保存</button>
+      <button class="btn sec" onclick="${id?`go('customer','${id}')`:"go('customers')"}">キャンセル</button>
+    </div>
+  </div>`;
+}
+function newCustomer()    { sel={type:'new-customer',id:null}; renderTree(); renderPanel(); }
+function editCustomer(id) { sel={type:'edit-customer',id}; renderTree(); renderPanel(); }
+function saveCustomer(id) {
+  const name = document.getElementById('cName').value.trim();
+  if(!name){alert('名前を入力してください');return;}
+  const obj = {
+    name, company:document.getElementById('cCompany').value.trim(),
+    status:document.getElementById('cStatus').value,
+    contact:document.getElementById('cContact').value.trim(),
+    bizId:document.getElementById('cBiz').value,
+    note:document.getElementById('cNote').value.trim()
+  };
+  let newId = id;
+  if(id){Object.assign(data.customers.find(x=>x.id===id),obj);}
+  else{newId=uid();data.customers.push({id:newId,...obj});}
+  sel={type:'customer',id:newId}; persist();
+}
+function delCustomer(id) {
+  if(!confirm('この顧客候補を削除しますか?'))return;
+  data.customers = data.customers.filter(x=>x.id!==id);
+  sel={type:'customers',id:null}; persist('削除しました');
+}
+
+// ── CSV Import ────────────────────────────────────────────
+let csvRows = [], csvHeaders = [];
+
+function showCsvModal() {
+  const el = document.createElement('div');
+  el.className = 'modal-bg'; el.id = 'csvModalBg';
+  el.innerHTML = `
+  <div class="modal">
+    <h3>📥 CSVインポート（顧客候補）</h3>
+    <p style="font-size:.83rem;color:var(--sub);margin-bottom:12px">Notion・Numbers からエクスポートした CSV ファイルを選択してください（UTF-8推奨）。</p>
+    <input type="file" id="csvFile" accept=".csv" onchange="loadCsv(event)" style="margin-bottom:12px">
+    <div id="csvMapArea" style="display:none">
+      <p style="font-size:.8rem;color:var(--sub);margin-bottom:8px">プレビュー（1行目）:</p>
+      <div class="csv-preview" id="csvPreview"></div>
+      <p style="font-size:.82rem;font-weight:600;margin-bottom:8px">列を対応付け（不要な列は「使わない」）:</p>
+      <div class="csv-grid" id="csvGrid"></div>
+    </div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn" id="csvImportBtn" style="display:none" onclick="execCsvImport()">インポート実行</button>
+      <button class="btn sec" onclick="document.getElementById('csvModalBg').remove()">キャンセル</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function loadCsv(ev) {
+  const file = ev.target.files[0]; if(!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const text = e.target.result;
+    csvRows = parseCsv(text);
+    if(csvRows.length < 2){alert('データ行がありません');return;}
+    csvHeaders = csvRows[0];
+    const preview = csvRows[1] || [];
+    document.getElementById('csvPreview').textContent = csvHeaders.map((h,i)=>`${h}: ${preview[i]||''}`).join('  |  ');
+    const fields = [
+      {key:'name',    label:'名前'},
+      {key:'company', label:'会社名'},
+      {key:'status',  label:'ステータス'},
+      {key:'contact', label:'連絡先'},
+      {key:'note',    label:'メモ'},
+    ];
+    const autoMap = h => {
+      h = h.toLowerCase();
+      if(/名前|name|氏名|顧客名/.test(h)) return 'name';
+      if(/会社|company|organization|組織/.test(h)) return 'company';
+      if(/ステータス|status|状態/.test(h)) return 'status';
+      if(/連絡先|contact|email|メール|電話|phone/.test(h)) return 'contact';
+      if(/メモ|note|備考|comment|説明/.test(h)) return 'note';
+      return '';
+    };
+    const opts = `<option value="">使わない</option>`+fields.map(f=>`<option value="${f.key}">${f.label}</option>`).join('');
+    document.getElementById('csvGrid').innerHTML = csvHeaders.map((h,i)=>`
+      <div>
+        <label>${esc(h)}</label>
+        <select id="csvCol_${i}">${opts.replace(`value="${autoMap(h)}"`,`value="${autoMap(h)}" selected`)}</select>
+      </div>`).join('');
+    document.getElementById('csvMapArea').style.display = '';
+    document.getElementById('csvImportBtn').style.display = '';
+  };
+  r.readAsText(file, 'UTF-8');
+}
+
+function parseCsv(text) {
+  const rows = []; let row = [], cur = '', inQ = false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i],nx=text[i+1];
+    if(inQ){if(ch==='"'&&nx==='"'){cur+='"';i++;}else if(ch==='"'){inQ=false;}else{cur+=ch;}}
+    else if(ch==='"'){inQ=true;}
+    else if(ch===','){row.push(cur);cur='';}
+    else if(ch==='\r'||ch==='\n'){if(ch==='\r'&&nx==='\n')i++;row.push(cur);if(row.some(c=>c))rows.push(row);row=[];cur='';}
+    else{cur+=ch;}
+  }
+  row.push(cur);if(row.some(c=>c))rows.push(row);
+  return rows;
+}
+
+function execCsvImport() {
+  const mapping = {};
+  csvHeaders.forEach((_,i)=>{
+    const v = document.getElementById('csvCol_'+i)?.value;
+    if(v) mapping[i] = v;
+  });
+  if(!Object.values(mapping).includes('name')){alert('「名前」列を選択してください');return;}
+  let count = 0;
+  for(let ri=1;ri<csvRows.length;ri++){
+    const row = csvRows[ri]; if(!row.length) continue;
+    const obj = {id:uid(),name:'',company:'',status:'候補',contact:'',bizId:'',note:''};
+    const extras = [];
+    csvHeaders.forEach((_,i)=>{
+      const val = (row[i]||'').trim(); if(!val) return;
+      const field = mapping[i];
+      if(field) obj[field] = val;
+      else if(!mapping[i]) extras.push(val);
+    });
+    if(!obj.name) continue;
+    if(!CUST_STATUSES.includes(obj.status)) obj.status = '候補';
+    if(extras.length) obj.note = [obj.note, extras.join(' / ')].filter(Boolean).join('\n');
+    data.customers.push(obj); count++;
+  }
+  document.getElementById('csvModalBg').remove();
+  sel={type:'customers',id:null}; persist(`${count}件インポートしました`);
 }
 
 // ── Export / Import ───────────────────────────────────────
