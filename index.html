@@ -245,6 +245,26 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-ligh
 .cs-done    { background:#dcfce7; color:#15803d; }
 .cs-pass    { background:#fee2e2; color:#b91c1c; }
 
+/* Flow Map */
+.flow-wrap { position:relative; width:100%; height:calc(100vh - var(--header-h) - 155px); min-height:300px; overflow:hidden; background:#f8f9fb; border-radius:8px; border:1px solid var(--border); }
+.flow-world { position:absolute; transform-origin:0 0; }
+.fnode { position:absolute; background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.12); min-width:140px; user-select:none; }
+.fnode.fsel { box-shadow:0 0 0 2px var(--accent),0 2px 8px rgba(0,0,0,.12); }
+.fnode-head { padding:6px 8px 5px; border-radius:8px 8px 0 0; display:flex; align-items:center; gap:5px; cursor:move; }
+.fnode-lbl { font-size:.8rem; font-weight:700; color:#fff; background:transparent; border:none; outline:none; flex:1; min-width:0; cursor:text; font-family:inherit; }
+.fnode-body { padding:7px 10px; font-size:.75rem; color:var(--sub); min-height:32px; outline:none; border-radius:0 0 8px 8px; }
+.fport { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.75); border:2px solid rgba(255,255,255,.95); cursor:crosshair; flex-shrink:0; }
+.fnode-del { color:rgba(255,255,255,.6); cursor:pointer; font-size:.7rem; padding:0 1px; flex-shrink:0; line-height:1; }
+.fnode-del:hover { color:#fff; }
+.fresize { position:absolute; right:3px; bottom:3px; width:10px; height:10px; cursor:se-resize; opacity:.3; font-size:.65rem; line-height:1; color:var(--sub); }
+.fresize:hover { opacity:.7; }
+.flow-toolbar { position:absolute; top:10px; left:10px; z-index:10; display:flex; gap:6px; }
+.flow-toolbar button { background:#fff; border:1px solid var(--border); border-radius:6px; padding:5px 11px; font-size:.76rem; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.flow-toolbar button:hover { background:var(--accent-light); border-color:var(--accent); }
+.ftype-row { display:flex; gap:6px; flex-wrap:wrap; padding:0 0 10px; }
+.ftype-btn { border:2px solid transparent; border-radius:999px; padding:3px 12px; font-size:.72rem; font-weight:700; cursor:pointer; opacity:.6; transition:opacity .1s; }
+.ftype-btn.fta { opacity:1; border-color:currentColor; }
+
 /* CSV modal */
 .modal-bg {
   position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:500;
@@ -307,7 +327,8 @@ let data = {
   philosophy: { mission:'', vision:'', values:[], story:'' },
   businesses: [], strategies: [], notes: [],
   relations: [], customers: [],
-  bizPositions: {}
+  bizPositions: {},
+  flowNodes: [], flowEdges: []
 };
 let sel = { type:'dashboard', id:null };
 let treeOpen = { philosophy:true, businesses:true, notes:true, common:true, customers:true };
@@ -321,6 +342,8 @@ function load() {
       if (!data.relations)    data.relations = [];
       if (!data.bizPositions) data.bizPositions = {};
       if (!data.customers)    data.customers = [];
+      if (!data.flowNodes)    data.flowNodes = [];
+      if (!data.flowEdges)    data.flowEdges = [];
     }
   } catch(e) { console.warn(e); }
 }
@@ -410,6 +433,14 @@ function renderTree() {
     </div>
   </div>`;
 
+  const flowSel=isSel('flow-map')?' sel':'';
+  h+=`<div class="t-row${flowSel}" onclick="go('flow-map')">
+    <span class="t-tog leaf">▶</span>
+    <span class="t-icon">🔀</span>
+    <span class="t-label">フローマップ</span>
+    ${data.flowNodes.length?`<span class="t-count">${data.flowNodes.length}</span>`:''}
+  </div>`;
+
   const noteO=treeOpen.notes;
   h+=`<div>`;
   h+=tRow('notes',null,'📝','メモ',data.notes.length>0,noteO,`tog('notes',event)`,data.notes.length,`<button onclick="event.stopPropagation();newNote()" class="t-add" title="追加">＋</button>`);
@@ -474,6 +505,7 @@ function renderPanel() {
     case 'customer':          el.innerHTML = pCustomer(sel.id); break;
     case 'new-customer':      el.innerHTML = pEditCustomer(null); break;
     case 'edit-customer':     el.innerHTML = pEditCustomer(sel.id); break;
+    case 'flow-map':          el.innerHTML = pFlowMap(); setTimeout(initFlowMap,0); break;
     default:                  el.innerHTML = pDashboard();
   }
 }
@@ -1253,6 +1285,291 @@ function execCsvImport() {
   sel={type:'customers',id:null}; persist(`${count}件インポートしました`);
 }
 
+// ── Flow Map ──────────────────────────────────────────────
+const FNODE_TYPES = [
+  { key:'idea',     label:'アイデア', color:'#7c3aed', bg:'#ede9fe' },
+  { key:'biz',      label:'事業',     color:'#1e5f8a', bg:'#dbeafe' },
+  { key:'strategy', label:'戦略',     color:'#15803d', bg:'#dcfce7' },
+  { key:'customer', label:'顧客',     color:'#b45309', bg:'#fef3c7' },
+  { key:'issue',    label:'課題',     color:'#b91c1c', bg:'#fee2e2' },
+  { key:'memo',     label:'メモ',     color:'#6b7280', bg:'#f3f4f6' },
+];
+const ftypeInfo = k => FNODE_TYPES.find(t=>t.key===k) || FNODE_TYPES[0];
+
+let _fPan={x:40,y:40}, _fZoom=1, _fAddType='idea', _fSel=null;
+let _fDragNode=null, _fResize=null, _fEdgeSrc=null, _fCleanup=null;
+
+function setFType(k) {
+  _fAddType = k;
+  document.querySelectorAll('.ftype-btn').forEach(b=>b.classList.toggle('fta', b.dataset.key===k));
+}
+
+function pFlowMap() {
+  return `
+  <div class="p-head">
+    <span class="p-icon">🔀</span>
+    <div><div class="p-title">フローマップ</div><div class="p-sub">ノードを配置・接続して自由にフローを構築</div></div>
+  </div>
+  <div class="ftype-row">
+    ${FNODE_TYPES.map(t=>`<button class="ftype-btn${_fAddType===t.key?' fta':''}" data-key="${t.key}" style="color:${t.color};background:${t.bg}" onclick="setFType('${t.key}')">${t.label}</button>`).join('')}
+  </div>
+  <div class="flow-wrap" id="flowWrap">
+    <div class="flow-toolbar">
+      <button onclick="addFNode()">＋ ノード追加</button>
+      <button onclick="autoLayoutF()">自動整列</button>
+      <button onclick="resetFView()">表示リセット</button>
+    </div>
+    <div id="flowWorld" class="flow-world">
+      <svg id="flowSvg" style="position:absolute;left:0;top:0;width:8000px;height:8000px;pointer-events:none;overflow:visible">
+        <defs>
+          <marker id="farrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 z" fill="#9ca3af"/>
+          </marker>
+        </defs>
+        <g id="flowEdgesG" style="pointer-events:all"></g>
+      </svg>
+    </div>
+  </div>`;
+}
+
+function nodeHtml(n) {
+  const ti = ftypeInfo(n.type);
+  const bodyHtml = esc(n.body||'').replace(/\n/g,'<br>');
+  return `<div class="fnode${_fSel===n.id?' fsel':''}" id="fn-${n.id}"
+    style="left:${n.x}px;top:${n.y}px;width:${n.w||160}px;min-height:${n.h||80}px"
+    onmousedown="fNodeDown(event,'${n.id}')">
+    <div class="fnode-head" style="background:${ti.color}">
+      <input class="fnode-lbl" value="${esc(n.label)}"
+        onmousedown="event.stopPropagation()"
+        onchange="fLabelChange('${n.id}',this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+      <div class="fport" onmousedown="fPortDown(event,'${n.id}')"></div>
+      <span class="fnode-del" onmousedown="event.stopPropagation()" onclick="delFNode('${n.id}')">✕</span>
+    </div>
+    <div class="fnode-body" contenteditable="true" spellcheck="false"
+      onmousedown="event.stopPropagation()"
+      oninput="fBodyChange('${n.id}',this.innerText)">${bodyHtml}</div>
+    <div class="fresize" onmousedown="fResizeDown(event,'${n.id}')">⤡</div>
+  </div>`;
+}
+
+function renderFNodes() {
+  const world = document.getElementById('flowWorld');
+  if (!world) return;
+  world.querySelectorAll('.fnode').forEach(el=>el.remove());
+  for (const n of data.flowNodes) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = nodeHtml(n);
+    world.appendChild(tmp.firstElementChild);
+  }
+}
+
+function renderFEdges() {
+  const g = document.getElementById('flowEdgesG');
+  if (!g) return;
+  let h = '';
+  for (const e of data.flowEdges) {
+    const src = data.flowNodes.find(n=>n.id===e.src);
+    const tgt = data.flowNodes.find(n=>n.id===e.tgt);
+    if (!src||!tgt) continue;
+    const sx=src.x+(src.w||160), sy=src.y+(src.h||80)/2;
+    const tx=tgt.x,              ty=tgt.y+(tgt.h||80)/2;
+    h += `<path d="${fbez(sx,sy,tx,ty)}" stroke="#9ca3af" stroke-width="2" fill="none" marker-end="url(#farrow)" style="cursor:pointer" onclick="delFEdge('${e.id}')" title="クリックで削除"/>`;
+  }
+  g.innerHTML = h;
+}
+
+function fbez(sx,sy,tx,ty) {
+  const dx = Math.abs(tx-sx)*0.5+40;
+  return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`;
+}
+
+function wrapToWorld(cx, cy) {
+  const wrap = document.getElementById('flowWrap');
+  if (!wrap) return {x:0,y:0};
+  const r = wrap.getBoundingClientRect();
+  return { x:(cx-r.left-_fPan.x)/_fZoom, y:(cy-r.top-_fPan.y)/_fZoom };
+}
+
+function applyFTransform() {
+  const w = document.getElementById('flowWorld');
+  if (w) w.style.transform = `translate(${_fPan.x}px,${_fPan.y}px) scale(${_fZoom})`;
+}
+
+function initFlowMap() {
+  if (_fCleanup) { _fCleanup(); _fCleanup=null; }
+  const wrap = document.getElementById('flowWrap');
+  if (!wrap) return;
+  applyFTransform();
+  renderFNodes();
+  renderFEdges();
+
+  let panDrag = null;
+  const wDown = e => {
+    const t = e.target;
+    if (t!==wrap && t.id!=='flowWorld' && t.id!=='flowSvg') return;
+    if (e.button!==0) return;
+    panDrag = {sx:e.clientX,sy:e.clientY,px:_fPan.x,py:_fPan.y};
+    wrap.style.cursor='grabbing';
+    e.preventDefault();
+  };
+  const wMove = e => {
+    if (!panDrag) return;
+    _fPan.x = panDrag.px+(e.clientX-panDrag.sx);
+    _fPan.y = panDrag.py+(e.clientY-panDrag.sy);
+    applyFTransform();
+  };
+  const wUp = () => { if(panDrag){panDrag=null;wrap.style.cursor='';} };
+  const onWheel = e => {
+    e.preventDefault();
+    const r=wrap.getBoundingClientRect();
+    const mx=e.clientX-r.left, my=e.clientY-r.top;
+    const dz=e.deltaY<0?1.1:0.909;
+    const nz=Math.min(3,Math.max(0.15,_fZoom*dz));
+    _fPan.x=mx-(mx-_fPan.x)*(nz/_fZoom);
+    _fPan.y=my-(my-_fPan.y)*(nz/_fZoom);
+    _fZoom=nz; applyFTransform();
+  };
+  const onMove = e=>fOnMove(e);
+  const onUp   = e=>fOnUp(e);
+
+  wrap.addEventListener('mousedown', wDown);
+  document.addEventListener('mousemove', wMove);
+  document.addEventListener('mouseup', wUp);
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  wrap.addEventListener('wheel', onWheel, {passive:false});
+
+  _fCleanup = () => {
+    wrap.removeEventListener('mousedown', wDown);
+    document.removeEventListener('mousemove', wMove);
+    document.removeEventListener('mouseup', wUp);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    wrap.removeEventListener('wheel', onWheel);
+  };
+}
+
+function fNodeDown(e, nid) {
+  if (e.button!==0) return;
+  _fSel=nid;
+  document.querySelectorAll('.fnode').forEach(el=>el.classList.remove('fsel'));
+  const el=document.getElementById('fn-'+nid);
+  if (el) el.classList.add('fsel');
+  if (!e.target.closest('.fnode-head')) return;
+  if (e.target.closest('.fport')||e.target.closest('.fnode-del')||e.target.tagName==='INPUT') return;
+  const n=data.flowNodes.find(n=>n.id===nid);
+  if (!n) return;
+  const wp=wrapToWorld(e.clientX,e.clientY);
+  _fDragNode={nid,ox:wp.x-n.x,oy:wp.y-n.y};
+  e.preventDefault();
+}
+
+function fPortDown(e, nid) {
+  e.stopPropagation(); e.preventDefault();
+  const n=data.flowNodes.find(n=>n.id===nid);
+  if (!n) return;
+  _fEdgeSrc={nid,px:n.x+(n.w||160),py:n.y+(n.h||80)/2};
+}
+
+function fResizeDown(e, nid) {
+  e.stopPropagation(); e.preventDefault();
+  _fResize={nid};
+}
+
+function fOnMove(e) {
+  if (_fDragNode) {
+    const wp=wrapToWorld(e.clientX,e.clientY);
+    const n=data.flowNodes.find(n=>n.id===_fDragNode.nid);
+    if (n) {
+      n.x=Math.round(wp.x-_fDragNode.ox); n.y=Math.round(wp.y-_fDragNode.oy);
+      const el=document.getElementById('fn-'+n.id);
+      if (el) { el.style.left=n.x+'px'; el.style.top=n.y+'px'; }
+      renderFEdges();
+    }
+  }
+  if (_fResize) {
+    const wp=wrapToWorld(e.clientX,e.clientY);
+    const n=data.flowNodes.find(n=>n.id===_fResize.nid);
+    if (n) {
+      n.w=Math.max(120,Math.round(wp.x-n.x)); n.h=Math.max(60,Math.round(wp.y-n.y));
+      const el=document.getElementById('fn-'+n.id);
+      if (el) { el.style.width=n.w+'px'; el.style.minHeight=n.h+'px'; }
+    }
+  }
+  if (_fEdgeSrc) {
+    const wp=wrapToWorld(e.clientX,e.clientY);
+    let tmp=document.getElementById('fTmpLine');
+    if (!tmp) {
+      tmp=document.createElementNS('http://www.w3.org/2000/svg','path');
+      tmp.id='fTmpLine'; tmp.setAttribute('stroke','#9ca3af');
+      tmp.setAttribute('stroke-width','2'); tmp.setAttribute('stroke-dasharray','6,3');
+      tmp.setAttribute('fill','none');
+      const svg=document.getElementById('flowSvg');
+      if (svg) svg.appendChild(tmp);
+    }
+    tmp.setAttribute('d', fbez(_fEdgeSrc.px,_fEdgeSrc.py,wp.x,wp.y));
+  }
+}
+
+function fOnUp(e) {
+  if (_fDragNode) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    _fDragNode=null;
+  }
+  if (_fResize) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    _fResize=null;
+  }
+  if (_fEdgeSrc) {
+    const tmp=document.getElementById('fTmpLine');
+    if (tmp) tmp.remove();
+    const tgt=e.target.closest && e.target.closest('.fnode');
+    if (tgt) {
+      const tgtId=tgt.id.replace('fn-','');
+      if (tgtId && tgtId!==_fEdgeSrc.nid && !data.flowEdges.find(ed=>ed.src===_fEdgeSrc.nid&&ed.tgt===tgtId)) {
+        data.flowEdges.push({id:uid(),src:_fEdgeSrc.nid,tgt:tgtId});
+        localStorage.setItem(STORE_KEY, JSON.stringify(data));
+        renderFEdges(); renderTree();
+      }
+    }
+    _fEdgeSrc=null;
+  }
+}
+
+function fLabelChange(nid, val) {
+  const n=data.flowNodes.find(n=>n.id===nid);
+  if (n) { n.label=val.trim()||n.label; localStorage.setItem(STORE_KEY,JSON.stringify(data)); }
+}
+function fBodyChange(nid, val) {
+  const n=data.flowNodes.find(n=>n.id===nid);
+  if (n) { n.body=val; localStorage.setItem(STORE_KEY,JSON.stringify(data)); }
+}
+
+function addFNode() {
+  const idx=data.flowNodes.length;
+  const n={id:uid(),type:_fAddType,label:ftypeInfo(_fAddType).label,body:'',x:60+idx*30,y:60+idx*30,w:160,h:80};
+  data.flowNodes.push(n);
+  persist('ノードを追加しました');
+}
+function delFNode(nid) {
+  data.flowNodes=data.flowNodes.filter(n=>n.id!==nid);
+  data.flowEdges=data.flowEdges.filter(e=>e.src!==nid&&e.tgt!==nid);
+  persist('ノードを削除しました');
+}
+function delFEdge(eid) {
+  data.flowEdges=data.flowEdges.filter(e=>e.id!==eid);
+  localStorage.setItem(STORE_KEY,JSON.stringify(data));
+  renderFEdges();
+}
+function resetFView() { _fPan={x:40,y:40}; _fZoom=1; applyFTransform(); }
+function autoLayoutF() {
+  if (!data.flowNodes.length) return;
+  const cols=Math.ceil(Math.sqrt(data.flowNodes.length));
+  data.flowNodes.forEach((n,i)=>{ n.x=60+(i%cols)*200; n.y=60+Math.floor(i/cols)*150; });
+  persist('自動整列しました');
+}
+
 // ── Export / Import ───────────────────────────────────────
 function exportData(){
   const a=document.createElement('a');
@@ -1267,7 +1584,7 @@ function importData(ev){
       const imp=JSON.parse(r.result);
       if(!imp.philosophy&&!imp.businesses) throw new Error('形式が違います');
       if(!confirm('現在のデータを上書きします。よろしいですか?')) return;
-      data=Object.assign({philosophy:{mission:'',vision:'',values:[],story:''},businesses:[],strategies:[],notes:[],relations:[],bizPositions:{}},imp);
+      data=Object.assign({philosophy:{mission:'',vision:'',values:[],story:''},businesses:[],strategies:[],notes:[],relations:[],bizPositions:{},flowNodes:[],flowEdges:[]},imp);
       sel={type:'dashboard',id:null}; persist('インポートしました');
     }catch(e){alert('読み込みに失敗しました: '+e.message);}
     ev.target.value='';
