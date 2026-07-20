@@ -232,7 +232,8 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-ligh
 .fnode { position:absolute; background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.12); min-width:140px; user-select:none; }
 .fnode.fsel { box-shadow:0 0 0 2px var(--accent),0 2px 8px rgba(0,0,0,.12); }
 .fnode-head { padding:6px 8px 5px; border-radius:8px 8px 0 0; display:flex; align-items:center; gap:5px; cursor:move; }
-.fnode-lbl { font-size:.8rem; font-weight:700; color:#fff; background:transparent; border:none; outline:none; flex:1; min-width:0; cursor:text; font-family:inherit; }
+.fnode-lbl { font-size:.8rem; font-weight:700; color:#fff; background:transparent; border:none; outline:none; flex:1; min-width:0; cursor:move; font-family:inherit; }
+.fnode-lbl:focus { cursor:text; }
 .fnode-body { padding:7px 10px; font-size:.75rem; color:var(--sub); min-height:32px; outline:none; border-radius:0 0 8px 8px; }
 .fport { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.75); border:2px solid rgba(255,255,255,.95); cursor:crosshair; flex-shrink:0; }
 .fnode-del { color:rgba(255,255,255,.6); cursor:pointer; font-size:.7rem; padding:0 1px; flex-shrink:0; line-height:1; }
@@ -977,7 +978,7 @@ const FNODE_TYPES = [
 const ftypeInfo = k => FNODE_TYPES.find(t=>t.key===k) || FNODE_TYPES[0];
 
 let _fPan={x:40,y:40}, _fZoom=1, _fAddType='idea', _fSel=null;
-let _fDragNode=null, _fResize=null, _fEdgeSrc=null, _fCleanup=null;
+let _fDragNode=null, _fDragPending=null, _fResize=null, _fEdgeSrc=null, _fCleanup=null;
 
 function setFType(k) {
   _fAddType = k;
@@ -1020,7 +1021,6 @@ function nodeHtml(n) {
     onmousedown="fNodeDown(event,'${n.id}')">
     <div class="fnode-head" style="background:${ti.color}">
       <input class="fnode-lbl" value="${esc(n.label)}"
-        onmousedown="event.stopPropagation()"
         onchange="fLabelChange('${n.id}',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()">
       <div class="fport" onmousedown="fPortDown(event,'${n.id}')"></div>
@@ -1136,13 +1136,19 @@ function fNodeDown(e, nid) {
   document.querySelectorAll('.fnode').forEach(el=>el.classList.remove('fsel'));
   const el=document.getElementById('fn-'+nid);
   if (el) el.classList.add('fsel');
+  if (e.target.closest('.fport')||e.target.closest('.fnode-del')||e.target.closest('.fresize')) return;
   if (!e.target.closest('.fnode-head')) return;
-  if (e.target.closest('.fport')||e.target.closest('.fnode-del')||e.target.tagName==='INPUT') return;
   const n=data.flowNodes.find(n=>n.id===nid);
   if (!n) return;
-  const wp=wrapToWorld(e.clientX,e.clientY);
-  _fDragNode={nid,ox:wp.x-n.x,oy:wp.y-n.y};
-  e.preventDefault();
+  if (e.target.tagName==='INPUT') {
+    // inputクリック: 閾値を超えたらドラッグ開始（クリックでフォーカスも維持）
+    _fDragPending={nid,startX:e.clientX,startY:e.clientY};
+  } else {
+    // ヘッダー背景: 即座にドラッグ開始
+    const wp=wrapToWorld(e.clientX,e.clientY);
+    _fDragNode={nid,ox:wp.x-n.x,oy:wp.y-n.y};
+    e.preventDefault();
+  }
 }
 
 function fPortDown(e, nid) {
@@ -1158,6 +1164,18 @@ function fResizeDown(e, nid) {
 }
 
 function fOnMove(e) {
+  if (_fDragPending) {
+    const dx=e.clientX-_fDragPending.startX, dy=e.clientY-_fDragPending.startY;
+    if (Math.sqrt(dx*dx+dy*dy)>5) {
+      const n=data.flowNodes.find(n=>n.id===_fDragPending.nid);
+      if (n) {
+        const wp=wrapToWorld(e.clientX,e.clientY);
+        _fDragNode={nid:_fDragPending.nid,ox:wp.x-n.x,oy:wp.y-n.y};
+      }
+      _fDragPending=null;
+      document.getSelection()?.removeAllRanges();
+    }
+  }
   if (_fDragNode) {
     const wp=wrapToWorld(e.clientX,e.clientY);
     const n=data.flowNodes.find(n=>n.id===_fDragNode.nid);
@@ -1193,6 +1211,7 @@ function fOnMove(e) {
 }
 
 function fOnUp(e) {
+  if (_fDragPending) { _fDragPending=null; }
   if (_fDragNode) {
     localStorage.setItem(STORE_KEY, JSON.stringify(data));
     _fDragNode=null;
@@ -1247,7 +1266,17 @@ function autoLayoutF() {
   if (!data.flowNodes.length) return;
   const cols=Math.ceil(Math.sqrt(data.flowNodes.length));
   data.flowNodes.forEach((n,i)=>{ n.x=60+(i%cols)*200; n.y=60+Math.floor(i/cols)*150; });
-  persist('自動整列しました');
+  _fPan={x:40,y:40}; _fZoom=1;
+  localStorage.setItem(STORE_KEY,JSON.stringify(data));
+  applyFTransform();
+  data.flowNodes.forEach(n=>{
+    const el=document.getElementById('fn-'+n.id);
+    if(el){ el.style.left=n.x+'px'; el.style.top=n.y+'px'; }
+  });
+  renderFEdges();
+  const t=document.getElementById('toast');
+  t.textContent='自動整列しました'; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);
 }
 
 // ── Export / Import ───────────────────────────────────────
