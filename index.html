@@ -333,6 +333,7 @@ function persist(msg) {
   renderTree(); renderPanel();
 }
 const uid   = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const linkify = t => t.replace(/(https?:\/\/[^\s<"]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">$1</a>');
 const esc   = s => (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today = () => new Date().toISOString().slice(0,10);
 
@@ -1094,7 +1095,7 @@ function pCustomer(id) {
       ${c.contact?`<div><div class="meta">連絡先</div><div style="font-size:.9rem">${esc(c.contact)}</div></div>`:''}
       ${bz?`<div><div class="meta">関連事業</div><div style="font-size:.9rem;cursor:pointer;color:var(--accent)" onclick="go('business','${bz.id}')">${esc(bz.name)}</div></div>`:''}
     </div>
-    ${c.note?`<hr class="hr"><div class="desc">${esc(c.note)}</div>`:''}
+    ${c.note?`<hr class="hr"><div class="desc">${linkify(esc(c.note))}</div>`:''}
   </div>
   <div class="btn-row">
     <button class="btn" onclick="editCustomer('${c.id}')">編集する</button>
